@@ -2,38 +2,23 @@ package main
 
 import (
 	"log"
+	fasthttpadp "payment-system/internal/adapters/fasthttp"
+	natsadp "payment-system/internal/adapters/nats"
 
 	"github.com/valyala/fasthttp"
 )
 
-func notifyHandler(ctx *fasthttp.RequestCtx) {
-	log.Printf("========== NOTIFY ==========")
-	log.Printf("Method: %s", ctx.Method())
-	log.Printf("URI: %s", ctx.URI().String())
-	log.Printf("RemoteAddr: %s", ctx.RemoteAddr().String())
-
-	log.Printf("StatusCode: %d", ctx.Response.StatusCode())
-
-	log.Printf("Headers:")
-	hrds := ctx.Request.Header.All()
-
-	for k, v := range hrds {
-		log.Printf("%s: %s", string(k), string(v))
-	}
-
-	log.Printf("Body:")
-	log.Printf("%s", ctx.PostBody())
-
-	log.Printf("============================")
-
-	ctx.SetStatusCode(fasthttp.StatusOK)
-	ctx.SetContentType("application/json")
-	ctx.SetBodyString(`{"status":"ok"}`)
-}
-
 func main() {
+	natsClient, err := natsadp.New(natsadp.NatsURL, natsadp.StreamPayments)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer natsClient.Close()
+
+	callbackHandler := fasthttpadp.NewCallbackHandler(natsClient)
+
 	server := &fasthttp.Server{
-		Handler: notifyHandler,
+		Handler: callbackHandler.NotifyHandler,
 	}
 
 	log.Println("Notify server listening on :8081")

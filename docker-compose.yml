@@ -1,4 +1,16 @@
 services:
+  nats-js:
+    image: nats:2.10-alpine
+    container_name: nats-jetstream
+    ports:
+      - "4222:4222"  # Client port
+      - "8222:8222"  # Management port
+    command: "-js -sd /data"
+    volumes:
+      - nats_data:/data
+    networks:
+      - payment-network
+
   # --- Wallet DB (PostgreSQL) ---
   wallet-db:
     image: postgres:18-alpine
@@ -42,6 +54,7 @@ services:
       - payment-network
 
 volumes:
+  nats_data:
   wallet-db-data:
 
 networks:
