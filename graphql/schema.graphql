@@ -1,0 +1,34 @@
+type Card {
+  id: ID!
+  type: String!
+  linkedAt: Int!
+  last4: String!
+}
+
+type WalletCard {
+  redirectUrl: String!
+}
+
+type PaymentResult {
+  paymentId: ID!
+  status: String!
+}
+
+type Query {
+  getCards(
+    customerId: ID!
+  ): [Card!]!
+}
+
+type Mutation {
+  addCardToWallet(
+    customerId: ID!
+  ): WalletCard!
+
+  payWithCard(
+    cardId: ID!
+    amount: Int!
+    currency: String!
+    orderId: ID!
+  ): PaymentResult!
+}

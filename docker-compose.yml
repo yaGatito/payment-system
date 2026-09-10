@@ -1,0 +1,49 @@
+services:
+  # --- Wallet DB (PostgreSQL) ---
+  wallet-db:
+    image: postgres:18-alpine
+    container_name: wallet-db-postgres-18-alpine
+    environment:
+      POSTGRES_USER: "${WALLET_DB_USER}"
+      POSTGRES_PASSWORD: "${WALLET_DB_PASS}"
+      POSTGRES_DB: "${WALLET_DB_NAME}"
+    ports:
+      - "${WALLET_DB_PORT}:${WALLET_DB_PORT}"
+    volumes:
+      - wallet-db-data:/var/lib/postgresql
+    networks:
+      - payment-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  # --- Migration runner service ---
+  migration_runner:
+    image: yagatito/goose-go:1.0
+    container_name: wallet_migration_runner
+    volumes:
+      - ~/projects/payment-system/sql/migrations:/wallet-migrations
+    environment:
+      WALLET_DB_NAME: "${WALLET_DB_NAME}"
+      WALLET_DB_HOST: "${WALLET_DB_HOST}"
+      WALLET_DB_PORT: "${WALLET_DB_PORT}"
+      WALLET_DB_USER: "${WALLET_DB_USER}"
+      WALLET_DB_PASS: "${WALLET_DB_PASS}"
+    command: >
+      sh -c '
+      goose -dir /wallet-migrations postgres "postgres://$$WALLET_DB_USER:$$WALLET_DB_PASS@$$WALLET_DB_HOST:$$WALLET_DB_PORT/$$WALLET_DB_NAME?sslmode=disable" up
+      '
+    depends_on:
+      wallet-db:
+        condition: service_healthy
+    networks:
+      - payment-network
+
+volumes:
+  wallet-db-data:
+
+networks:
+  payment-network:
+    driver: bridge
