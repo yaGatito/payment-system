@@ -4,6 +4,7 @@ import (
 	"log"
 	fasthttpadp "payment-system/internal/adapters/fasthttp"
 	natsadp "payment-system/internal/adapters/nats"
+	"payment-system/pkg/logger"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/valyala/fasthttp"
@@ -17,6 +18,13 @@ type EnvConfig struct {
 }
 
 func main() {
+	l := logger.New()
+	if err := run(l); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(l *logger.Logger) error {
 	cfg := EnvConfig{}
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatalf("parsing callback config failed: %v", err)
@@ -28,14 +36,16 @@ func main() {
 	}
 	defer natsClient.Close()
 
-	callbackHandler := fasthttpadp.NewCallbackHandler(natsClient, cfg.NatsSubject)
+	callbackHandler := fasthttpadp.NewCallbackHandler(natsClient, cfg.NatsSubject, l)
 
 	server := &fasthttp.Server{
 		Handler: callbackHandler.NotifyHandler,
 	}
 
-	log.Printf("Notify server listening on %s", cfg.ListenAddr)
+	l.Info("notify server listening on %s", cfg.ListenAddr)
 	if err := server.ListenAndServe(cfg.ListenAddr); err != nil {
 		log.Fatal(err)
 	}
+
+	return nil
 }

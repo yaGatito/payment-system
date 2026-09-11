@@ -4,65 +4,71 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	natsadp "payment-system/internal/adapters/nats"
+	"payment-system/pkg/logger"
 	"strings"
 	"time"
 
 	"github.com/valyala/fasthttp"
 )
 
+const timeout = 10 * time.Second
+
 type CallbackHandler struct {
 	natsClient  natsadp.NatsClient
 	natsSubject string
+	logger      *logger.Logger
 }
 
-func NewCallbackHandler(natsClient natsadp.NatsClient, natsSubject string) *CallbackHandler {
+func NewCallbackHandler(natsClient natsadp.NatsClient, natsSubject string, l *logger.Logger) *CallbackHandler {
+	if natsClient == nil {
+		panic("nats client is required")
+	}
+	if l == nil {
+		l = logger.New()
+	}
 	return &CallbackHandler{
 		natsClient:  natsClient,
 		natsSubject: natsSubject,
+		logger:      l,
 	}
 }
 
 func (ch *CallbackHandler) NotifyHandler(ctx *fasthttp.RequestCtx) {
 	body := ctx.PostBody()
-	logReq(ctx, body)
+	ch.logger.Info("callback request received: method=%s uri=%s", ctx.Method(), ctx.URI().String())
 
 	var response rozetkaApiResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		log.Printf("Error unmarshaling JSON: %v\n", err)
+		ch.logger.Error("invalid callback json: %v", err)
 		writeResponse(ctx, fasthttp.StatusBadRequest, `{"error":"invalid json"}`)
 		return
 	}
 
-	log.Printf("Received API response: %+v", response)
-
 	paymentEvent, err := toPaymentEvent(response)
 	if err != nil {
-		log.Printf("Error mapping to payment event: %v", err)
+		ch.logger.Error("invalid callback payload: %v", err)
 		writeResponse(ctx, fasthttp.StatusBadRequest, `{"error":"invalid callback payload"}`)
 		return
 	}
+
 	eventData, err := json.Marshal(paymentEvent)
-
-	log.Printf("Mapped to event: %+v", string(eventData))
-
 	if err != nil {
-		log.Printf("Error marshaling payment event: %v", err)
+		ch.logger.Error("marshal payment event failed: %v", err)
 		writeResponse(ctx, fasthttp.StatusInternalServerError, `{"error":"internal server error"}`)
 		return
 	}
 
-	publishCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	publishCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err = ch.natsClient.Publish(publishCtx, ch.natsSubject, eventData)
-	if err != nil {
-		log.Printf("Error publishing payment event: %v", err)
+	if err := ch.natsClient.Publish(publishCtx, ch.natsSubject, eventData); err != nil {
+		ch.logger.Error("publish payment event failed: %v", err)
 		writeResponse(ctx, fasthttp.StatusInternalServerError, `{"error":"internal server error"}`)
 		return
 	}
 
+	ch.logger.Info("callback event published: subject=%s type=%s customer=%s payment=%s status=%s", ch.natsSubject, paymentEvent.EventType, paymentEvent.CustomerID, paymentEvent.PaymentID, paymentEvent.Status)
 	writeResponse(ctx, fasthttp.StatusOK, `{"status":"ok"}`)
 }
 
@@ -101,22 +107,4 @@ func toPaymentEvent(response rozetkaApiResponse) (natsadp.PaymentEvent, error) {
 		CardMask:      response.PaymentMethod.CcToken.Mask,
 		PaymentSystem: response.PaymentMethod.CcToken.PaymentSystem,
 	}, nil
-}
-
-func logReq(ctx *fasthttp.RequestCtx, rawBody []byte) {
-	log.Printf("========== NOTIFY ==========")
-	log.Printf("Method: %s", ctx.Method())
-	log.Printf("URI: %s", ctx.URI().String())
-	log.Printf("RemoteAddr: %s", ctx.RemoteAddr().String())
-	log.Printf("StatusCode: %d", ctx.Response.StatusCode())
-	log.Printf("Headers:")
-	hrds := ctx.Request.Header.All()
-
-	for k, v := range hrds {
-		log.Printf("%s: %s", string(k), string(v))
-	}
-
-	log.Printf("Body:")
-	log.Printf("%s", rawBody)
-	log.Printf("============================")
 }

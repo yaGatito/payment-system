@@ -9,11 +9,11 @@ import (
 	natsadp "payment-system/internal/adapters/nats"
 	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/app"
+	"payment-system/pkg/logger"
 	"payment-system/sql/sqlcgen"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nats-io/nats.go/jetstream"
 )
 
 type EnvConfig struct {
@@ -34,16 +34,14 @@ const (
 	SuccessPaymentStatus = "success"
 )
 
-// 1. app.Service usage (save card to DB)
-// 2. app.Service usage (pay with card, and save payment into DB OR update its status in DB)
-
 func main() {
-	if err := run(); err != nil {
+	l := logger.New()
+	if err := run(l); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func run(l *logger.Logger) error {
 	ctx := context.Background()
 
 	cfg := EnvConfig{}
@@ -64,18 +62,19 @@ func run() error {
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
 	paymentWorkerSvc := app.NewPaymentWorkerService(walletRepo)
-	messageHandler := natsadp.NewPaymentMessageHandler(paymentWorkerSvc)
+	messageHandler, err := natsadp.NewPaymentMessageHandler(paymentWorkerSvc, l)
+	if err != nil {
+		return fmt.Errorf("init payment message handler: %w", err)
+	}
 
 	natsClient, err := natsadp.New(cfg.NatsURL, cfg.NatsStream)
 	if err != nil {
 		return fmt.Errorf("failed to initialize nats js client: %w", err)
 	}
 
-	natsClient.Subscribe(ctx, cfg.NatsStream, durableName, func(msg jetstream.Msg) {
-		messageHandler.HandleMessage(ctx, msg)
-	})
+	natsClient.Subscribe(ctx, cfg.NatsStream, durableName, messageHandler.HandleMessage)
 
-	log.Printf("Started worker")
+	l.Info("started worker")
 
 	time.Sleep(time.Hour)
 	select {}

@@ -14,6 +14,7 @@ import (
 	rozetkaclient "payment-system/internal/adapters/3rdparty"
 	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/app"
+	"payment-system/pkg/logger"
 	"payment-system/sql/sqlcgen"
 )
 
@@ -31,12 +32,13 @@ type EnvConfig struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	l := logger.New()
+	if err := run(l); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func run(l *logger.Logger) error {
 	ctx := context.Background()
 
 	cfg := EnvConfig{}
@@ -73,7 +75,7 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", h)
 
-	log.Printf("wallet graphql listening on %s/graphql", cfg.GraphQLListenAddr)
+	l.Info("wallet graphql listening on %s/graphql", cfg.GraphQLListenAddr)
 	if err := http.ListenAndServe(cfg.GraphQLListenAddr, mux); err != nil {
 		log.Fatal(err)
 	}
