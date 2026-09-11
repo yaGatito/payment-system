@@ -173,3 +173,19 @@ func (q *Queries) RemoveCard(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, removeCard, id)
 	return err
 }
+
+const updatePaymentStatus = `-- name: UpdatePaymentStatus :exec
+UPDATE payments
+SET status = $2
+WHERE id = $1
+`
+
+type UpdatePaymentStatusParams struct {
+	ID     uuid.UUID
+	Status string
+}
+
+func (q *Queries) UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) error {
+	_, err := q.db.Exec(ctx, updatePaymentStatus, arg.ID, arg.Status)
+	return err
+}

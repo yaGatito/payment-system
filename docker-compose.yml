@@ -45,7 +45,7 @@ services:
       WALLET_DB_PASS: "${WALLET_DB_PASS}"
     command: >
       sh -c '
-      goose -dir /wallet-migrations postgres "postgres://$$WALLET_DB_USER:$$WALLET_DB_PASS@$$WALLET_DB_HOST:$$WALLET_DB_PORT/$$WALLET_DB_NAME?sslmode=disable" up
+      goose -dir /wallet-migrations postgres "postgres://$$WALLET_DB_USER:$$WALLET_DB_PASS@wallet-db:$$WALLET_DB_PORT/$$WALLET_DB_NAME?sslmode=disable" up
       '
     depends_on:
       wallet-db:

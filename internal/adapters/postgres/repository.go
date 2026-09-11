@@ -17,6 +17,7 @@ type WalletRepository interface {
 	RemoveCard(ctx context.Context, cardID uuid.UUID) error
 
 	AddPayment(ctx context.Context, payment domain.Payment) error
+	UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error
 	GetPayments(ctx context.Context, ownerID uuid.UUID, limit, offset int32) ([]domain.Payment, error)
 }
 
@@ -101,6 +102,18 @@ func (r *WalletRepoPostgreSQL) AddPayment(ctx context.Context, payment domain.Pa
 		Status:   payment.Status,
 	}
 	err = r.queries.AddPayment(ctx, arg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *WalletRepoPostgreSQL) UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error {
+	arg := sqlcgen.UpdatePaymentStatusParams{
+		ID:     paymentID,
+		Status: paymentStatus,
+	}
+	err := r.queries.UpdatePaymentStatus(ctx, arg)
 	if err != nil {
 		return err
 	}

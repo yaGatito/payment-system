@@ -8,12 +8,11 @@ import (
 	"os"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/google/uuid"
 	"github.com/graphql-go/handler"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	gqladp "payment-system/graphql"
-	rozetkaclient "payment-system/internal/3rdparty"
+	rozetkaclient "payment-system/internal/adapters/3rdparty"
 	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/app"
 	"payment-system/sql/sqlcgen"
@@ -35,12 +34,6 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
-	testId1, _ := uuid.NewRandom()
-	testId2, _ := uuid.NewRandom()
-	testId3, _ := uuid.NewRandom()
-	fmt.Println(testId1.String())
-	fmt.Println(testId2.String())
-	fmt.Println(testId3.String())
 
 	baseURL := "https://api.rozetkapay.com"
 	username := "a6a29002-dc68-4918-bc5d-51a6094b14a8"
@@ -50,7 +43,7 @@ func run() error {
 	cfg := EnvConfig{}
 	err := env.Parse(&cfg)
 	if err != nil {
-		log.Fatalf("parsing config failed: %v", err)
+		return fmt.Errorf("parsing config failed: %w", err)
 	}
 
 	pgConfig, err := pgxpool.ParseConfig(dbURL(cfg))

@@ -47,6 +47,9 @@ func NewSchema(walletInteractor app.WalletInteractor) (gql.Schema, error) {
 		Fields: gql.Fields{
 			"getCards": &gql.Field{
 				Type: gql.NewNonNull(gql.NewList(gql.NewNonNull(cardType))),
+				Args: gql.FieldConfigArgument{
+					"customerId": &gql.ArgumentConfig{Type: gql.NewNonNull(gql.String)},
+				},
 				Resolve: func(p gql.ResolveParams) (interface{}, error) {
 					customerID, _ := p.Args["customerId"].(string)
 					return walletInteractor.GetCards(context.Background(), uuid.MustParse(customerID))

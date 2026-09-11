@@ -21,6 +21,11 @@ WHERE id = $1;
 INSERT INTO payments (owner_id, card_id, amount, currency, status)
 VALUES ($1, $2, $3, $4, $5);
 
+-- name: UpdatePaymentStatus :exec
+UPDATE payments
+SET status = $2
+WHERE id = $1;
+
 -- name: GetPayments :many
 SELECT id, card_id, amount, currency, status, created_at
 FROM payments

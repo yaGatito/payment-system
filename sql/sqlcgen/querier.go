@@ -17,6 +17,7 @@ type Querier interface {
 	GetCards(ctx context.Context, ownerID uuid.UUID) ([]Card, error)
 	GetPayments(ctx context.Context, arg GetPaymentsParams) ([]GetPaymentsRow, error)
 	RemoveCard(ctx context.Context, id uuid.UUID) error
+	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)

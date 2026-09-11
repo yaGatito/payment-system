@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
-	thirdparty "payment-system/internal/3rdparty"
+	thirdparty "payment-system/internal/adapters/3rdparty"
 	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/domain"
 
