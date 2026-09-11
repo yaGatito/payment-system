@@ -38,14 +38,14 @@ func (q *Queries) AddCard(ctx context.Context, arg AddCardParams) (uuid.UUID, er
 }
 
 const addPayment = `-- name: AddPayment :exec
-INSERT INTO payments (owner_id, card_id, amount, currency, status)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO payments (owner_id, card_id, amount, currency, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
 `
 
 type AddPaymentParams struct {
 	OwnerID  uuid.UUID
 	CardID   uuid.UUID
-	Amount   pgtype.Numeric
+	Amount   int64
 	Currency string
 	Status   string
 }
@@ -115,7 +115,7 @@ func (q *Queries) GetCards(ctx context.Context, ownerID uuid.UUID) ([]Card, erro
 }
 
 const getPayments = `-- name: GetPayments :many
-SELECT id, card_id, amount, currency, status, created_at
+SELECT id, card_id, amount, currency, status, created_at, updated_at
 FROM payments
 WHERE owner_id = $1
 ORDER BY created_at DESC
@@ -131,10 +131,11 @@ type GetPaymentsParams struct {
 type GetPaymentsRow struct {
 	ID        uuid.UUID
 	CardID    uuid.UUID
-	Amount    pgtype.Numeric
+	Amount    int64
 	Currency  string
 	Status    string
 	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
 }
 
 func (q *Queries) GetPayments(ctx context.Context, arg GetPaymentsParams) ([]GetPaymentsRow, error) {
@@ -153,6 +154,7 @@ func (q *Queries) GetPayments(ctx context.Context, arg GetPaymentsParams) ([]Get
 			&i.Currency,
 			&i.Status,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -176,7 +178,7 @@ func (q *Queries) RemoveCard(ctx context.Context, id uuid.UUID) error {
 
 const updatePaymentStatus = `-- name: UpdatePaymentStatus :exec
 UPDATE payments
-SET status = $2
+SET status = $2, updated_at = NOW()
 WHERE id = $1
 `
 

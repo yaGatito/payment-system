@@ -8,13 +8,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-const (
-	NatsURL         = "nats://localhost:4222"
-	PublishTimeout  = 10 * time.Second
-	StreamPayments  = "PAYMENTS_STREAM"
-	SubjectPayments = "payments.notify"
-)
-
 type NatsClient interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 	Subscribe(ctx context.Context, streamName, durableName string, handler func(msg jetstream.Msg)) (jetstream.ConsumeContext, error)
@@ -46,7 +39,7 @@ func New(url string, streamName string) (*NatsPubSubClient, error) {
 
 	_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 		Name:     streamName,
-		Subjects: []string{"payments.*"},
+		Subjects: []string{"events.*"},
 	})
 	if err != nil {
 		nc.Close()

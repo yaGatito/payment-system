@@ -9,11 +9,11 @@ type AddPaymentMethodResponse struct {
 }
 
 type CreatePaymentWithTokenRequest struct {
-	OrderID       string  `json:"order_id"`
-	Amount        float64 `json:"amount"`
-	Currency      string  `json:"currency"`
-	CustomerID    string  `json:"customer_id"`
-	CustomerToken string  `json:"customer_token"`
+	OrderID       string `json:"order_id"`
+	Amount        int64  `json:"amount"`
+	Currency      string `json:"currency"`
+	CustomerID    string `json:"customer_id"`
+	CustomerToken string `json:"customer_token"`
 }
 
 type CreatePaymentWithTokenResponse struct {

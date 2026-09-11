@@ -22,8 +22,9 @@ type Payment struct {
 	ID        uuid.UUID
 	CardID    uuid.UUID
 	OwnerID   uuid.UUID
-	Amount    pgtype.Numeric
+	Amount    int64
 	Currency  string
 	Status    string
 	CreatedAt pgtype.Timestamp
+	UpdatedAt pgtype.Timestamp
 }

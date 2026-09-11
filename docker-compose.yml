@@ -11,7 +11,6 @@ services:
     networks:
       - payment-network
 
-  # --- Wallet DB (PostgreSQL) ---
   wallet-db:
     image: postgres:18-alpine
     container_name: wallet-db-postgres-18-alpine
@@ -31,7 +30,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- Migration runner service ---
   migration_runner:
     image: yagatito/goose-go:1.0
     container_name: wallet_migration_runner

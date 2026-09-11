@@ -3,31 +3,19 @@ package postgres
 import (
 	"context"
 	"payment-system/internal/domain"
+	"payment-system/internal/ports"
 	"payment-system/sql/sqlcgen"
-	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
-
-type WalletRepository interface {
-	AddCard(ctx context.Context, card domain.Card) error
-	GetCardByID(ctx context.Context, cardID uuid.UUID) (domain.Card, error)
-	GetCards(ctx context.Context, ownerID uuid.UUID) []domain.Card
-	RemoveCard(ctx context.Context, cardID uuid.UUID) error
-
-	AddPayment(ctx context.Context, payment domain.Payment) error
-	UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error
-	GetPayments(ctx context.Context, ownerID uuid.UUID, limit, offset int32) ([]domain.Payment, error)
-}
 
 type WalletRepoPostgreSQL struct {
 	queries sqlcgen.Querier
 }
 
-var _ WalletRepository = (*WalletRepoPostgreSQL)(nil)
+var _ ports.WalletRepository = (*WalletRepoPostgreSQL)(nil)
 
-func NewWalletRepoPostgreSQL(querier sqlcgen.Querier) WalletRepository {
+func NewWalletRepoPostgreSQL(querier sqlcgen.Querier) ports.WalletRepository {
 	w := WalletRepoPostgreSQL{}
 	w.queries = querier
 	return &w
@@ -88,21 +76,14 @@ func (r *WalletRepoPostgreSQL) RemoveCard(ctx context.Context, cardID uuid.UUID)
 }
 
 func (r *WalletRepoPostgreSQL) AddPayment(ctx context.Context, payment domain.Payment) error {
-	var amount pgtype.Numeric
-	err := amount.Scan(strconv.FormatFloat(payment.Amount, 'f', -1, 64))
-	if err != nil {
-		return err
-	}
-
 	arg := sqlcgen.AddPaymentParams{
 		OwnerID:  payment.CustomerID,
 		CardID:   payment.CardID,
-		Amount:   amount,
+		Amount:   payment.Amount,
 		Currency: payment.Currency,
 		Status:   payment.Status,
 	}
-	err = r.queries.AddPayment(ctx, arg)
-	if err != nil {
+	if err := r.queries.AddPayment(ctx, arg); err != nil {
 		return err
 	}
 	return nil
@@ -132,18 +113,15 @@ func (r *WalletRepoPostgreSQL) GetPayments(ctx context.Context, ownerID uuid.UUI
 	}
 	payments := make([]domain.Payment, len(rows))
 	for i, row := range rows {
-		amount, err := row.Amount.Float64Value()
-		if err != nil {
-			return nil, err
-		}
 		payments[i] = domain.Payment{
 			OrderID:    row.ID,
 			CustomerID: ownerID,
 			CardID:     row.CardID,
-			Amount:     amount.Float64,
+			Amount:     row.Amount,
 			Currency:   row.Currency,
 			Status:     row.Status,
 			CreatedAt:  row.CreatedAt.Time,
+			UpdatedAt:  row.UpdatedAt.Time,
 		}
 	}
 	return payments, nil

@@ -9,8 +9,13 @@ import (
 	"net/http"
 	"time"
 
+	"payment-system/internal/domain"
+
 	"github.com/google/uuid"
 )
+
+const RozetkaPaymentsPath = "/api/payments/v1/new"
+const TokenPaymentType = "cc_token"
 
 type Client struct {
 	BaseURL     string
@@ -107,7 +112,7 @@ type ccTokenFragment struct {
 
 type createPaymentRequest struct {
 	ExternalID  string           `json:"external_id"`
-	Amount      float64          `json:"amount"`
+	Amount      int64            `json:"amount"`
 	Currency    string           `json:"currency"`
 	Mode        string           `json:"mode"`
 	CallbackURL string           `json:"callback_url,omitempty"`
@@ -120,14 +125,14 @@ func (c *Client) AddPaymentMethod(ctx context.Context, req AddPaymentMethodReque
 	orderID, _ := uuid.NewRandom()
 
 	payload := createPaymentRequest{
-		ExternalID:  "add-card_" + req.CustomerID + "_" + orderID.String(),
+		ExternalID:  domain.BuildExternalID(domain.AddCardEventType, req.CustomerID, orderID.String()),
 		Amount:      1,
 		Currency:    "UAH",
 		Mode:        "hosted",
 		CallbackURL: c.CallbackURL,
 	}
 
-	ar, err := c.post(ctx, "/api/payments/v1/new", payload)
+	ar, err := c.post(ctx, RozetkaPaymentsPath, payload)
 	if err != nil {
 		return AddPaymentMethodResponse{}, err
 	}
@@ -141,7 +146,7 @@ func (c *Client) AddPaymentMethod(ctx context.Context, req AddPaymentMethodReque
 // CreatePaymentWithSavedCard creates a payment using a saved card token
 func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePaymentWithTokenRequest) (CreatePaymentWithTokenResponse, error) {
 	payload := createPaymentRequest{
-		ExternalID:  req.OrderID,
+		ExternalID:  domain.BuildExternalID(domain.PaymentEventType, req.CustomerID, req.OrderID),
 		Amount:      req.Amount,
 		Currency:    req.Currency,
 		Mode:        "direct",
@@ -149,7 +154,7 @@ func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePayme
 		Customer: &paymentCustomer{
 			ExternalID: req.CustomerID,
 			PaymentMethod: &paymentMethodBody{
-				Type: "cc_token",
+				Type: TokenPaymentType,
 				CcToken: &ccTokenFragment{
 					Token: req.CustomerToken,
 				},

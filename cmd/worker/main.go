@@ -2,36 +2,33 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
+	"time"
+
 	natsadp "payment-system/internal/adapters/nats"
 	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/app"
-	"payment-system/internal/domain"
 	"payment-system/sql/sqlcgen"
-	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
 type EnvConfig struct {
-	DbUser string `env:"WALLET_DB_USER,notEmpty"`
-	DbPass string `env:"WALLET_DB_PASS,notEmpty"`
-	DbHost string `env:"WALLET_DB_HOST,notEmpty"`
-	DbPort string `env:"WALLET_DB_PORT,notEmpty"`
-	DbName string `env:"WALLET_DB_NAME,notEmpty"`
+	DbUser     string `env:"WALLET_DB_USER,notEmpty"`
+	DbPass     string `env:"WALLET_DB_PASS,notEmpty"`
+	DbHost     string `env:"WALLET_DB_HOST,notEmpty"`
+	DbPort     string `env:"WALLET_DB_PORT,notEmpty"`
+	DbName     string `env:"WALLET_DB_NAME,notEmpty"`
+	NatsURL    string `env:"NATS_URL,notEmpty"`
+	NatsStream string `env:"NATS_STREAM,notEmpty"`
 }
 
 const durableName = "PAYMENT_WORKER"
 
 const (
-	AddCardEventType = "add-card"
-	PaymentEventType = "payment"
-
 	PendingPaymentStatus = "pending"
 	FailurePaymentStatus = "failure"
 	SuccessPaymentStatus = "success"
@@ -67,40 +64,15 @@ func run() error {
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
 	paymentWorkerSvc := app.NewPaymentWorkerService(walletRepo)
+	messageHandler := natsadp.NewPaymentMessageHandler(paymentWorkerSvc)
 
-	natsClient, err := natsadp.New(natsadp.NatsURL, natsadp.StreamPayments)
+	natsClient, err := natsadp.New(cfg.NatsURL, cfg.NatsStream)
 	if err != nil {
 		return fmt.Errorf("failed to initialize nats js client: %w", err)
 	}
 
-	natsClient.Subscribe(ctx, natsadp.StreamPayments, durableName, func(msg jetstream.Msg) {
-		var event natsadp.PaymentEvent
-		err := json.Unmarshal(msg.Data(), &event)
-		if err != nil {
-			log.Printf("failed to deserialize event data: %s", string(msg.Data()))
-		}
-
-		switch event.EventType {
-		case AddCardEventType:
-			if event.Status == SuccessPaymentStatus {
-				err := paymentWorkerSvc.SaveCard(context.Background(), domain.Card{
-					CustomerID: uuid.MustParse(event.CustomerID),
-					Token:      event.CcToken,
-					Type:       event.PaymentSystem,
-					// TODO: cut last4
-					Last4: event.CardMask,
-				})
-				if err != nil {
-					log.Printf("failed to save card: %v", err)
-				}
-			}
-
-		case PaymentEventType:
-			// TODO: populate fields required to save payment in callback-service
-			// paymentWorkerSvc.SavePayment()
-		}
-
-		msg.Ack()
+	natsClient.Subscribe(ctx, cfg.NatsStream, durableName, func(msg jetstream.Msg) {
+		messageHandler.HandleMessage(ctx, msg)
 	})
 
 	log.Printf("Started worker")

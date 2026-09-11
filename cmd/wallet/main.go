@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/graphql-go/handler"
@@ -19,11 +18,16 @@ import (
 )
 
 type EnvConfig struct {
-	DbUser string `env:"WALLET_DB_USER,notEmpty"`
-	DbPass string `env:"WALLET_DB_PASS,notEmpty"`
-	DbHost string `env:"WALLET_DB_HOST,notEmpty"`
-	DbPort string `env:"WALLET_DB_PORT,notEmpty"`
-	DbName string `env:"WALLET_DB_NAME,notEmpty"`
+	DbUser            string `env:"WALLET_DB_USER,notEmpty"`
+	DbPass            string `env:"WALLET_DB_PASS,notEmpty"`
+	DbHost            string `env:"WALLET_DB_HOST,notEmpty"`
+	DbPort            string `env:"WALLET_DB_PORT,notEmpty"`
+	DbName            string `env:"WALLET_DB_NAME,notEmpty"`
+	RozetkaBaseURL    string `env:"ROZETKA_BASE_URL,notEmpty"`
+	RozetkaUsername   string `env:"ROZETKA_USERNAME,notEmpty"`
+	RozetkaPassword   string `env:"ROZETKA_PASSWORD,notEmpty"`
+	RozetkaCallback   string `env:"ROZETKA_CALLBACK_URL,notEmpty"`
+	GraphQLListenAddr string `env:"GRAPHQL_LISTEN_ADDR,notEmpty"`
 }
 
 func main() {
@@ -34,11 +38,6 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
-
-	baseURL := "https://api.rozetkapay.com"
-	username := "a6a29002-dc68-4918-bc5d-51a6094b14a8"
-	password := "XChz3J8qrr"
-	redirectURL := "https://tidy-worsening-womanless.ngrok-free.dev/notify"
 
 	cfg := EnvConfig{}
 	err := env.Parse(&cfg)
@@ -57,7 +56,7 @@ func run() error {
 	}
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
-	rozetkaClient := rozetkaclient.NewClient(baseURL, username, password, redirectURL)
+	rozetkaClient := rozetkaclient.NewClient(cfg.RozetkaBaseURL, cfg.RozetkaUsername, cfg.RozetkaPassword, cfg.RozetkaCallback)
 	walletService := app.NewWalletService(walletRepo, rozetkaClient)
 
 	schema, err := gqladp.NewSchema(walletService)
@@ -74,13 +73,8 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", h)
 
-	addr := ":8082"
-	if v := os.Getenv("ADDR"); v != "" {
-		addr = v
-	}
-
-	log.Printf("wallet graphql listening on %s/graphql", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	log.Printf("wallet graphql listening on %s/graphql", cfg.GraphQLListenAddr)
+	if err := http.ListenAndServe(cfg.GraphQLListenAddr, mux); err != nil {
 		log.Fatal(err)
 	}
 

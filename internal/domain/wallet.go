@@ -18,6 +18,7 @@ type Card struct {
 
 type WalletCard struct {
 	CustomerID  uuid.UUID
+	CardID      uuid.UUID
 	RedirectURL string
 }
 
@@ -26,8 +27,9 @@ type Payment struct {
 	CardID     uuid.UUID
 	OrderID    uuid.UUID
 
-	Amount    float64
+	Amount    int64
 	Currency  string
 	Status    string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }

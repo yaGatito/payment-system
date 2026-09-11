@@ -14,10 +14,11 @@ CREATE TABLE
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     card_id UUID NOT NULL, -- Foreign key to cards table
     owner_id UUID NOT NULL, -- Foreign key to users table
-    amount DECIMAL(10, 2) NOT NULL,
+    amount BIGINT NOT NULL,
     currency VARCHAR(3) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- +goose StatementEnd
 

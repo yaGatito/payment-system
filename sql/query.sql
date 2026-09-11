@@ -18,16 +18,16 @@ DELETE FROM cards
 WHERE id = $1;
 
 -- name: AddPayment :exec
-INSERT INTO payments (owner_id, card_id, amount, currency, status)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO payments (owner_id, card_id, amount, currency, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW());
 
 -- name: UpdatePaymentStatus :exec
 UPDATE payments
-SET status = $2
+SET status = $2, updated_at = NOW()
 WHERE id = $1;
 
 -- name: GetPayments :many
-SELECT id, card_id, amount, currency, status, created_at
+SELECT id, card_id, amount, currency, status, created_at, updated_at
 FROM payments
 WHERE owner_id = $1
 ORDER BY created_at DESC

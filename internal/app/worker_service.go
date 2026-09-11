@@ -2,8 +2,8 @@ package app
 
 import (
 	"context"
-	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/domain"
+	"payment-system/internal/ports"
 
 	"github.com/google/uuid"
 )
@@ -11,14 +11,14 @@ import (
 type PaymentWorkerInteractor interface {
 	SaveCard(ctx context.Context, card domain.Card) error
 	SavePayment(ctx context.Context, payment domain.Payment) error
-	UpdatePayment(ctx context.Context, orderID uuid.UUID, payment domain.Payment) error
+	UpdatePaymentStatus(ctx context.Context, orderID uuid.UUID, paymentStatus string) error
 }
 
 type PaymentWorkerService struct {
-	db postgres.WalletRepository
+	db ports.WalletRepository
 }
 
-func NewPaymentWorkerService(db postgres.WalletRepository) *PaymentWorkerService {
+func NewPaymentWorkerService(db ports.WalletRepository) *PaymentWorkerService {
 	return &PaymentWorkerService{
 		db: db,
 	}

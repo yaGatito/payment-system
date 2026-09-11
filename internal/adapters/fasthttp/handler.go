@@ -1,21 +1,26 @@
 package fasthttpadp
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	natsadp "payment-system/internal/adapters/nats"
 	"strings"
+	"time"
 
 	"github.com/valyala/fasthttp"
 )
 
 type CallbackHandler struct {
-	natsClient natsadp.NatsClient
+	natsClient  natsadp.NatsClient
+	natsSubject string
 }
 
-func NewCallbackHandler(natsClient natsadp.NatsClient) *CallbackHandler {
+func NewCallbackHandler(natsClient natsadp.NatsClient, natsSubject string) *CallbackHandler {
 	return &CallbackHandler{
-		natsClient: natsClient,
+		natsClient:  natsClient,
+		natsSubject: natsSubject,
 	}
 }
 
@@ -35,7 +40,7 @@ func (ch *CallbackHandler) NotifyHandler(ctx *fasthttp.RequestCtx) {
 	paymentEvent, err := toPaymentEvent(response)
 	if err != nil {
 		log.Printf("Error mapping to payment event: %v", err)
-		writeResponse(ctx, fasthttp.StatusInternalServerError, `{"error":"internal server error"}`)
+		writeResponse(ctx, fasthttp.StatusBadRequest, `{"error":"invalid callback payload"}`)
 		return
 	}
 	eventData, err := json.Marshal(paymentEvent)
@@ -48,7 +53,10 @@ func (ch *CallbackHandler) NotifyHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	err = ch.natsClient.Publish(ctx, natsadp.SubjectPayments, eventData)
+	publishCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = ch.natsClient.Publish(publishCtx, ch.natsSubject, eventData)
 	if err != nil {
 		log.Printf("Error publishing payment event: %v", err)
 		writeResponse(ctx, fasthttp.StatusInternalServerError, `{"error":"internal server error"}`)
@@ -65,10 +73,19 @@ func writeResponse(ctx *fasthttp.RequestCtx, statusCode int, message string) {
 }
 
 func toPaymentEvent(response rozetkaApiResponse) (natsadp.PaymentEvent, error) {
+	if response.ExternalID == "" {
+		return natsadp.PaymentEvent{}, fmt.Errorf("missing external_id")
+	}
+	if response.Details.TransactionID == "" {
+		return natsadp.PaymentEvent{}, fmt.Errorf("missing transaction_id")
+	}
+	if response.PaymentMethod.CcToken.Token == "" || response.PaymentMethod.CcToken.Mask == "" {
+		return natsadp.PaymentEvent{}, fmt.Errorf("missing card token or mask")
+	}
+
 	compositeID := strings.Split(response.ExternalID, "_")
-	if len(compositeID) != 3 {
-		log.Printf("Received amount of fragments of composite external ID is not equal 3")
-		return natsadp.PaymentEvent{}, nil
+	if len(compositeID) != 3 || compositeID[0] == "" || compositeID[1] == "" || compositeID[2] == "" {
+		return natsadp.PaymentEvent{}, fmt.Errorf("invalid external_id format")
 	}
 	eventType := compositeID[0]
 	customerID := compositeID[1]

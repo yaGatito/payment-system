@@ -10,7 +10,7 @@ type Card struct {
 
 // WalletCard is the result of starting a card-link flow.
 type WalletCard struct {
-	// CardID      string `json:"cardId"`
+	CardID      string `json:"cardId"`
 	RedirectURL string `json:"redirectUrl"`
 }
 

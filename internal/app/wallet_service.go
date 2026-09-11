@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	thirdparty "payment-system/internal/adapters/3rdparty"
-	"payment-system/internal/adapters/postgres"
 	"payment-system/internal/domain"
+	"payment-system/internal/ports"
 
 	"github.com/google/uuid"
 )
@@ -19,11 +19,11 @@ type WalletInteractor interface {
 var _ WalletInteractor = (*WalletService)(nil)
 
 type WalletService struct {
-	db            postgres.WalletRepository
+	db            ports.WalletRepository
 	rozetkaClient thirdparty.RozetkaClient
 }
 
-func NewWalletService(db postgres.WalletRepository, rozetkaClient thirdparty.RozetkaClient) WalletInteractor {
+func NewWalletService(db ports.WalletRepository, rozetkaClient thirdparty.RozetkaClient) WalletInteractor {
 	return &WalletService{
 		db:            db,
 		rozetkaClient: rozetkaClient,
@@ -56,9 +56,15 @@ func (ws *WalletService) GetCards(ctx context.Context, customerID uuid.UUID) ([]
 }
 
 func (ws *WalletService) ChargeSavedCard(ctx context.Context, payment domain.Payment) error {
+	if payment.CustomerID == uuid.Nil {
+		return fmt.Errorf("invalid customer ID")
+	}
 	card, err := ws.db.GetCardByID(ctx, payment.CardID)
 	if err != nil {
 		return err
+	}
+	if card.CustomerID != payment.CustomerID {
+		return fmt.Errorf("card does not belong to customer")
 	}
 
 	resp, err := ws.rozetkaClient.CreatePaymentWithSavedCard(ctx, thirdparty.CreatePaymentWithTokenRequest{
@@ -68,7 +74,9 @@ func (ws *WalletService) ChargeSavedCard(ctx context.Context, payment domain.Pay
 		CustomerID:    payment.CustomerID.String(),
 		CustomerToken: card.Token,
 	})
-
+	if err != nil {
+		return err
+	}
 	if resp.Status == "failed" {
 		return fmt.Errorf("payment failed")
 	}
