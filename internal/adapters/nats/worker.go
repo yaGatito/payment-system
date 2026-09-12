@@ -44,32 +44,33 @@ func (h *PaymentMessageHandler) HandleMessage(msg jetstream.Msg) {
 	var event PaymentEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		h.logger.Error("failed to deserialize event data: %s", string(msg.Data()))
-		msg.Ack()
+		_ = msg.Ack()
 		return
 	}
 
-	dedupKey := fmt.Sprintf("%s:%s:%s", event.CustomerID, event.TransactionID,  event.Status)
+	dedupKey := fmt.Sprintf("%s:%s:%s", event.CustomerID, event.TransactionID, event.Status)
 	h.logger.Info("event received: type=%s customer=%s payment=%s tx=%s status=%s", event.EventType, event.CustomerID, event.PaymentID, event.TransactionID, event.Status)
 	if _, ok := h.seen.LoadOrStore(dedupKey, struct{}{}); ok {
 		h.logger.Warn("duplicate payment event skipped: %s", dedupKey)
-		msg.Ack()
+		_ = msg.Ack()
 		return
 	}
 
 	if err := h.handleEvent(ctx, event); err != nil {
 		h.logger.Error("failed to process event %s: %v", dedupKey, err)
-		msg.Ack()
+		_ = msg.Ack()
 		return
 	}
 
 	h.logger.Info("event processed successfully: type=%s customer=%s payment=%s status=%s", event.EventType, event.CustomerID, event.PaymentID, event.Status)
-	msg.Ack()
+	_ = msg.Ack()
 }
 
 func (h *PaymentMessageHandler) handleEvent(ctx context.Context, event PaymentEvent) error {
 	switch event.EventType {
 	case domain.AddCardEventType:
-		if event.Status != "success" {
+		if event.Status != domain.SuccessPaymentStatus {
+			// During add-card event we are intersting only in success event
 			return nil
 		}
 		customerID, err := uuid.Parse(event.CustomerID)

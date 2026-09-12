@@ -65,34 +65,57 @@ func (c *Client) post(ctx context.Context, path string, body interface{}) (*apiR
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
 
-	req.Header.Set("Content-Type", "application/json")
-	if c.Username != "" && c.Password != "" {
-		req.SetBasicAuth(c.Username, c.Password)
-	} else {
-		return nil, fmt.Errorf("username and password are required for basic auth")
-	}
+		req.Header.Set("Content-Type", "application/json")
+		if c.Username != "" && c.Password != "" {
+			req.SetBasicAuth(c.Username, c.Password)
+		} else {
+			return nil, fmt.Errorf("username and password are required for basic auth")
+		}
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			lastErr = err
+			if attempt < 2 {
+				select {
+				case <-ctx.Done():
+					return nil, err
+				case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+				}
+			}
+			continue
+		}
 
-	data, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("bad status %d: %s", resp.StatusCode, string(data))
-	}
+		data, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+			lastErr = fmt.Errorf("bad status %d: %s", resp.StatusCode, string(data))
+			if attempt < 2 {
+				select {
+				case <-ctx.Done():
+					return nil, lastErr
+				case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+				}
+			}
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("bad status %d: %s", resp.StatusCode, string(data))
+		}
 
-	var ar apiResponse
-	if err := json.Unmarshal(data, &ar); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
+		var ar apiResponse
+		if err := json.Unmarshal(data, &ar); err != nil {
+			return nil, fmt.Errorf("unmarshal response: %w", err)
+		}
+		return &ar, nil
 	}
-	return &ar, nil
+	return nil, lastErr
 }
 
 // typed request payloads

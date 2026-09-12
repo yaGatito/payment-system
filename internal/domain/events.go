@@ -10,6 +10,12 @@ const (
 	PaymentEventType = "payment"
 )
 
+const (
+	PendingPaymentStatus = "pending"
+	FailurePaymentStatus = "failure"
+	SuccessPaymentStatus = "success"
+)
+
 func BuildExternalID(eventType, customerID, entityID string) string {
 	return strings.Join([]string{eventType, customerID, entityID}, "_")
 }

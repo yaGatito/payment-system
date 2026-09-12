@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
 	natsadp "payment-system/internal/adapters/nats"
 	"payment-system/internal/adapters/postgres"
@@ -42,7 +44,8 @@ func main() {
 }
 
 func run(l *logger.Logger) error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	cfg := EnvConfig{}
 	err := env.Parse(&cfg)
@@ -59,6 +62,7 @@ func run(l *logger.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
+	defer pool.Close()
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
 	paymentWorkerSvc := app.NewPaymentWorkerService(walletRepo)
@@ -71,13 +75,23 @@ func run(l *logger.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize nats js client: %w", err)
 	}
+	defer natsClient.Close()
 
-	natsClient.Subscribe(ctx, cfg.NatsStream, durableName, messageHandler.HandleMessage)
+	consumeCtx, err := natsClient.Subscribe(ctx, cfg.NatsStream, durableName, messageHandler.HandleMessage)
+	if err != nil {
+		return fmt.Errorf("subscribe to nats stream: %w", err)
+	}
+	defer func() {
+		if consumeCtx != nil {
+			consumeCtx.Stop()
+		}
+	}()
 
 	l.Info("started worker")
 
-	time.Sleep(time.Hour)
-	select {}
+	<-ctx.Done()
+	l.Info("shutdown signal received, stopping worker")
+	return nil
 }
 
 func dbURL(cfg EnvConfig) string {

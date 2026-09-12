@@ -11,10 +11,11 @@ import (
 )
 
 type EnvConfig struct {
-	ListenAddr  string `env:"CALLBACK_LISTEN_ADDR,notEmpty"`
-	NatsURL     string `env:"NATS_URL,notEmpty"`
-	NatsStream  string `env:"NATS_STREAM,notEmpty"`
-	NatsSubject string `env:"NATS_SUBJECT,notEmpty"`
+	ListenAddr     string `env:"CALLBACK_LISTEN_ADDR,notEmpty"`
+	NatsURL        string `env:"NATS_URL,notEmpty"`
+	NatsStream     string `env:"NATS_STREAM,notEmpty"`
+	NatsSubject    string `env:"NATS_SUBJECT,notEmpty"`
+	CallbackSecret string `env:"ROZETKA_PASSWORD,notEmpty"`
 }
 
 func main() {
@@ -36,7 +37,7 @@ func run(l *logger.Logger) error {
 	}
 	defer natsClient.Close()
 
-	callbackHandler := fasthttpadp.NewCallbackHandler(natsClient, cfg.NatsSubject, l)
+	callbackHandler := fasthttpadp.NewCallbackHandler(natsClient, cfg.NatsSubject, cfg.CallbackSecret, l)
 
 	server := &fasthttp.Server{
 		Handler: callbackHandler.NotifyHandler,
