@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	natsadp "payment-system/internal/adapters/nats"
 	"payment-system/internal/adapters/postgres"
@@ -18,6 +19,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const shutdownTimeout = 10 * time.Second
+const durableName = "PAYMENT_WORKER"
+
 type EnvConfig struct {
 	DbUser     string `env:"WALLET_DB_USER,notEmpty"`
 	DbPass     string `env:"WALLET_DB_PASS,notEmpty"`
@@ -27,8 +31,6 @@ type EnvConfig struct {
 	NatsURL    string `env:"NATS_URL,notEmpty"`
 	NatsStream string `env:"NATS_STREAM,notEmpty"`
 }
-
-const durableName = "PAYMENT_WORKER"
 
 func main() {
 	l := logger.New()
@@ -59,7 +61,7 @@ func run(l *logger.Logger) error {
 	defer pool.Close()
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
-	paymentWorkerSvc := app.NewPaymentWorkerService(walletRepo)
+	paymentWorkerSvc := app.NewPaymentWorkerService(walletRepo, l)
 	messageHandler, err := natsadp.NewPaymentMessageHandler(paymentWorkerSvc, l)
 	if err != nil {
 		return fmt.Errorf("init payment message handler: %w", err)
@@ -71,20 +73,32 @@ func run(l *logger.Logger) error {
 	}
 	defer natsClient.Close()
 
-	consumeCtx, err := natsClient.Subscribe(ctx, cfg.NatsStream, durableName, messageHandler.HandleMessage)
+	consumeCtx, err := natsClient.Subscribe(
+		ctx,
+		cfg.NatsStream,
+		durableName,
+		messageHandler.HandleMessage,
+	)
 	if err != nil {
 		return fmt.Errorf("subscribe to nats stream: %w", err)
 	}
-	defer func() {
-		if consumeCtx != nil {
-			consumeCtx.Stop()
-		}
-	}()
 
 	l.Info("started worker")
 
 	<-ctx.Done()
 	l.Info("shutdown signal received, stopping worker")
+	consumeCtx.Stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	select {
+	case <-consumeCtx.Closed():
+		l.Info("worker stopped gracefully")
+	case <-shutdownCtx.Done():
+		l.Error("worker shutdown timeout exceeded")
+	}
+
 	return nil
 }
 

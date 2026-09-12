@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/graphql-go/handler"
@@ -18,18 +23,21 @@ import (
 	"payment-system/sql/sqlcgen"
 )
 
+const shutdownTimeout = 10 * time.Second
+
 type EnvConfig struct {
-	DbUser            string `env:"WALLET_DB_USER,notEmpty"`
-	DbPass            string `env:"WALLET_DB_PASS,notEmpty"`
-	DbHost            string `env:"WALLET_DB_HOST,notEmpty"`
-	DbPort            string `env:"WALLET_DB_PORT,notEmpty"`
-	DbName            string `env:"WALLET_DB_NAME,notEmpty"`
-	RozetkaBaseURL    string `env:"ROZETKA_BASE_URL,notEmpty"`
-	RozetkaUsername   string `env:"ROZETKA_USERNAME,notEmpty"`
-	RozetkaPassword   string `env:"ROZETKA_PASSWORD,notEmpty"`
-	RozetkaCallback   string `env:"ROZETKA_CALLBACK_URL,notEmpty"`
-	GraphQLListenAddr string `env:"GRAPHQL_LISTEN_ADDR,notEmpty"`
+	DbUser          string `env:"WALLET_DB_USER,notEmpty"`
+	DbPass          string `env:"WALLET_DB_PASS,notEmpty"`
+	DbHost          string `env:"WALLET_DB_HOST,notEmpty"`
+	DbPort          string `env:"WALLET_DB_PORT,notEmpty"`
+	DbName          string `env:"WALLET_DB_NAME,notEmpty"`
+	RozetkaBaseURL  string `env:"ROZETKA_BASE_URL,notEmpty"`
+	RozetkaUsername string `env:"ROZETKA_USERNAME,notEmpty"`
+	RozetkaPassword string `env:"ROZETKA_PASSWORD,notEmpty"`
+	RozetkaCallback string `env:"ROZETKA_CALLBACK_URL,notEmpty"`
+	GraphQLPort     string `env:"GRAPHQL_PORT,notEmpty"`
 }
+
 
 func main() {
 	l := logger.New()
@@ -39,7 +47,8 @@ func main() {
 }
 
 func run(l *logger.Logger) error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	cfg := EnvConfig{}
 	err := env.Parse(&cfg)
@@ -56,14 +65,20 @@ func run(l *logger.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
+	defer pool.Close()
 
 	walletRepo := postgres.NewWalletRepoPostgreSQL(sqlcgen.New(pool))
-	rozetkaClient := rozetkaclient.NewClient(cfg.RozetkaBaseURL, cfg.RozetkaUsername, cfg.RozetkaPassword, cfg.RozetkaCallback)
-	walletService := app.NewWalletService(walletRepo, rozetkaClient)
+	rozetkaClient := rozetkaclient.NewClient(
+		cfg.RozetkaBaseURL,
+		cfg.RozetkaUsername,
+		cfg.RozetkaPassword,
+		cfg.RozetkaCallback,
+	)
+	walletService := app.NewWalletService(walletRepo, rozetkaClient, l)
 
 	schema, err := gqladp.NewSchema(walletService)
 	if err != nil {
-		log.Fatalf("graphql schema: %v", err)
+		return fmt.Errorf("graphql schema: %w", err)
 	}
 
 	h := handler.New(&handler.Config{
@@ -75,12 +90,33 @@ func run(l *logger.Logger) error {
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", h)
 
-	l.Info("wallet graphql listening on %s/graphql", cfg.GraphQLListenAddr)
-	if err := http.ListenAndServe(cfg.GraphQLListenAddr, mux); err != nil {
-		log.Fatal(err)
+	server := &http.Server{
+		Addr:    ":" + cfg.GraphQLPort,
+		Handler: mux,
 	}
 
-	return nil
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	l.Info("wallet graphql listening on %s/graphql", cfg.GraphQLPort)
+
+	select {
+	case <-ctx.Done():
+		l.Info("shutdown signal received, stopping wallet service")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("wallet shutdown failed: %w", err)
+		}
+		return nil
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("wallet http server failed: %w", err)
+	}
 }
 
 func dbURL(cfg EnvConfig) string {
