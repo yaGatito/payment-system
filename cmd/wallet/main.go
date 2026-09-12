@@ -38,7 +38,6 @@ type EnvConfig struct {
 	GraphQLPort     string `env:"GRAPHQL_PORT,notEmpty"`
 }
 
-
 func main() {
 	l := logger.New()
 	if err := run(l); err != nil {

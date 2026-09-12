@@ -52,11 +52,11 @@ services:
       - payment-network
 
   wallet-svc:
-    image: yagatito/wallet-service-prod:1.0
+    # image: yagatito/wallet-service-prod:1.0
     container_name: wallet-service
-    # build:
-    #   context: .
-    #   dockerfile: docker/Dockerfile.wallet
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wallet
     environment:
       WALLET_DB_HOST: wallet-db
       WALLET_DB_PORT: "${WALLET_DB_PORT}"
@@ -83,11 +83,11 @@ services:
       - payment-network
 
   callback-svc:
-    image: yagatito/callback-service-prod:1.0
+    # image: yagatito/callback-service-prod:1.0
     container_name: callback-service
-    # build:
-    #   context: .
-    #   dockerfile: docker/Dockerfile.callback
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.callback
     environment:
       CALLBACK_PORT: "${CALLBACK_PORT}"
       NATS_URL: "nats://nats-js:${NATS_PORT}"
@@ -103,11 +103,11 @@ services:
       - payment-network
 
   worker-svc:
-    image: yagatito/worker-service-prod:1.0
+    # image: yagatito/worker-service-prod:1.0
     container_name: worker-service
-    # build:
-    #   context: .
-    #   dockerfile: docker/Dockerfile.worker
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
     environment:
       WALLET_DB_HOST: wallet-db
       WALLET_DB_PORT: "${WALLET_DB_PORT}"

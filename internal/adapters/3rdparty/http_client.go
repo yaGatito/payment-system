@@ -16,6 +16,7 @@ import (
 
 const rozetkaPaymentsPath = "/api/payments/v1/new"
 const tokenPaymentType = "cc_token"
+const retryDeltaTimeout = 750 * time.Millisecond
 
 type Client struct {
 	BaseURL     string
@@ -86,7 +87,7 @@ func (c *Client) post(ctx context.Context, path string, body interface{}) (*apiR
 				select {
 				case <-ctx.Done():
 					return nil, err
-				case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+				case <-time.After(time.Duration(attempt+1) * retryDeltaTimeout):
 				}
 			}
 			continue
@@ -103,7 +104,7 @@ func (c *Client) post(ctx context.Context, path string, body interface{}) (*apiR
 				select {
 				case <-ctx.Done():
 					return nil, lastErr
-				case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+				case <-time.After(time.Duration(attempt+1) * retryDeltaTimeout):
 				}
 			}
 			continue

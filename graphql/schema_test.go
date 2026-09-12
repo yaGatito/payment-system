@@ -202,6 +202,56 @@ func TestGetPayments(t *testing.T) {
 	}
 }
 
+func TestPayWithCardInvalidAmount(t *testing.T) {
+	customerID := uuid.MustParse("123e4567-e89b-42d3-a456-426614174000").String()
+	cardID := uuid.MustParse("11111111-1111-4111-8111-111111111111").String()
+	result := gql.Do(gql.Params{
+		Schema: newTestSchema(t),
+		RequestString: `
+			mutation($customerId: ID!, $cardId: ID!, $amount: Int!, $currency: String!, $orderId: ID!) {
+				payWithCard(customerId: $customerId, cardId: $cardId, amount: $amount, currency: $currency, orderId: $orderId) {
+					paymentId
+					status
+				}
+			}`,
+		VariableValues: map[string]interface{}{
+			"customerId": customerID,
+			"cardId":     cardID,
+			"amount":     0,
+			"currency":   "UAH",
+			"orderId":    "22222222-2222-4222-8222-222222222222",
+		},
+	})
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for zero amount")
+	}
+}
+
+func TestPayWithCardInvalidCurrency(t *testing.T) {
+	customerID := uuid.MustParse("123e4567-e89b-42d3-a456-426614174000").String()
+	cardID := uuid.MustParse("11111111-1111-4111-8111-111111111111").String()
+	result := gql.Do(gql.Params{
+		Schema: newTestSchema(t),
+		RequestString: `
+			mutation($customerId: ID!, $cardId: ID!, $amount: Int!, $currency: String!, $orderId: ID!) {
+				payWithCard(customerId: $customerId, cardId: $cardId, amount: $amount, currency: $currency, orderId: $orderId) {
+					paymentId
+					status
+				}
+			}`,
+		VariableValues: map[string]interface{}{
+			"customerId": customerID,
+			"cardId":     cardID,
+			"amount":     1000,
+			"currency":   "",
+			"orderId":    "22222222-2222-4222-8222-222222222222",
+		},
+	})
+	if len(result.Errors) == 0 {
+		t.Fatal("expected validation error for empty currency")
+	}
+}
+
 func TestPayWithCardUnknownCard(t *testing.T) {
 	result := gql.Do(gql.Params{
 		Schema: newTestSchema(t),

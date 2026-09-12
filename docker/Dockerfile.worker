@@ -6,12 +6,13 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w -extldflags '-static'" -o /bin/worker-svc ./cmd/worker
-RUN apk add upx
+RUN apk add --no-cache ca-certificates tzdata upx
 RUN upx /bin/worker-svc
 
 FROM scratch
 WORKDIR /src
 
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /bin/worker-svc ./worker-svc
 
 CMD ["./worker-svc"]

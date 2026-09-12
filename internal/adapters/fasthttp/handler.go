@@ -16,6 +16,7 @@ import (
 )
 
 const timeout = 10 * time.Second
+const retryDeltaTimeout = 500 * time.Millisecond
 
 type CallbackHandler struct {
 	natsClient     natsadp.NatsClient
@@ -111,7 +112,7 @@ func (ch *CallbackHandler) publishWithRetry(
 			select {
 			case <-ctx.Done():
 				return err
-			case <-time.After(time.Duration(attempt+1) * 250 * time.Millisecond):
+			case <-time.After(time.Duration(attempt+1) * retryDeltaTimeout):
 			}
 		}
 	}
