@@ -153,11 +153,23 @@ func (h *SchemaHandler) payWithCardResolver(p gql.ResolveParams) (interface{}, e
 		return nil, fmt.Errorf("orderId is required")
 	}
 	currency, ok := p.Args[fieldCurrency].(string)
-	if !ok || currency == "" {
-		return nil, fmt.Errorf("currency is required")
+	if !ok || currency == "" || len(currency) != 3 {
+		return nil, fmt.Errorf("bad currency format")
 	}
-	amount, ok := p.Args[fieldAmount].(int64)
-	if !ok || amount == 0 {
+	var amount int64
+	switch v := p.Args[fieldAmount].(type) {
+	case int:
+		amount = int64(v)
+	case int32:
+		amount = int64(v)
+	case int64:
+		amount = v
+	case float64:
+		amount = int64(v)
+	default:
+		return nil, fmt.Errorf("amount is required")
+	}
+	if amount == 0 {
 		return nil, fmt.Errorf("amount is zero")
 	}
 
