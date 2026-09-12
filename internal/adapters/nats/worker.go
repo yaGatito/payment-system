@@ -23,7 +23,10 @@ type PaymentMessageHandler struct {
 	logger *logger.Logger
 }
 
-func NewPaymentMessageHandler(worker app.PaymentWorkerInteractor, l *logger.Logger) (*PaymentMessageHandler, error) {
+func NewPaymentMessageHandler(
+	worker app.PaymentWorkerInteractor,
+	l *logger.Logger,
+) (*PaymentMessageHandler, error) {
 	if worker == nil {
 		return nil, fmt.Errorf("payment worker is required")
 	}
@@ -49,7 +52,14 @@ func (h *PaymentMessageHandler) HandleMessage(msg jetstream.Msg) {
 	}
 
 	dedupKey := fmt.Sprintf("%s:%s:%s", event.CustomerID, event.TransactionID, event.Status)
-	h.logger.Info("event received: type=%s customer=%s payment=%s tx=%s status=%s", event.EventType, event.CustomerID, event.PaymentID, event.TransactionID, event.Status)
+	h.logger.Info(
+		"event received: type=%s customer=%s payment=%s tx=%s status=%s",
+		event.EventType,
+		event.CustomerID,
+		event.PaymentID,
+		event.TransactionID,
+		event.Status,
+	)
 	if _, ok := h.seen.LoadOrStore(dedupKey, struct{}{}); ok {
 		h.logger.Warn("duplicate payment event skipped: %s", dedupKey)
 		_ = msg.Ack()
@@ -62,7 +72,13 @@ func (h *PaymentMessageHandler) HandleMessage(msg jetstream.Msg) {
 		return
 	}
 
-	h.logger.Info("event processed successfully: type=%s customer=%s payment=%s status=%s", event.EventType, event.CustomerID, event.PaymentID, event.Status)
+	h.logger.Info(
+		"event processed successfully: type=%s customer=%s payment=%s status=%s",
+		event.EventType,
+		event.CustomerID,
+		event.PaymentID,
+		event.Status,
+	)
 	_ = msg.Ack()
 }
 
@@ -95,7 +111,11 @@ func (h *PaymentMessageHandler) handleEvent(ctx context.Context, event PaymentEv
 		}
 		err = h.worker.UpdatePaymentStatus(ctx, paymentID, event.Status)
 		if err == nil {
-			h.logger.Info("payment status updated in DB: payment=%s status=%s", paymentID, event.Status)
+			h.logger.Info(
+				"payment status updated in DB: payment=%s status=%s",
+				paymentID,
+				event.Status,
+			)
 		}
 		return err
 

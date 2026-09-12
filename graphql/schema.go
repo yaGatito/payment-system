@@ -44,7 +44,10 @@ func (h *SchemaHandler) GetCards(ctx context.Context, customerIDStr string) ([]*
 	return graphqlCards, nil
 }
 
-func (h *SchemaHandler) AddCardToWallet(ctx context.Context, customerIDStr string) (*WalletCard, error) {
+func (h *SchemaHandler) AddCardToWallet(
+	ctx context.Context,
+	customerIDStr string,
+) (*WalletCard, error) {
 	customerID, err := uuid.Parse(customerIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid customerId: %w", err)
@@ -56,7 +59,11 @@ func (h *SchemaHandler) AddCardToWallet(ctx context.Context, customerIDStr strin
 	return toGraphQLWalletCard(wallet), nil
 }
 
-func (h *SchemaHandler) PayWithCard(ctx context.Context, customerIDStr, cardIDStr, orderIDStr, currency string, amount int64) (*PaymentResult, error) {
+func (h *SchemaHandler) PayWithCard(
+	ctx context.Context,
+	customerIDStr, cardIDStr, orderIDStr, currency string,
+	amount int64,
+) (*PaymentResult, error) {
 	customerID, err := uuid.Parse(customerIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid customerId: %w", err)
@@ -87,7 +94,11 @@ func (h *SchemaHandler) PayWithCard(ctx context.Context, customerIDStr, cardIDSt
 	}, nil
 }
 
-func (h *SchemaHandler) GetPayments(ctx context.Context, customerIDStr string, limit, offset int32) ([]*Payment, error) {
+func (h *SchemaHandler) GetPayments(
+	ctx context.Context,
+	customerIDStr string,
+	limit, offset int32,
+) ([]*Payment, error) {
 	customerID, err := uuid.Parse(customerIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid customerId: %w", err)
@@ -145,18 +156,19 @@ func (h *SchemaHandler) payWithCardResolver(p gql.ResolveParams) (interface{}, e
 	if !ok || currency == "" {
 		return nil, fmt.Errorf("currency is required")
 	}
-	var amount int64
-	switch v := p.Args[fieldAmount].(type) {
-	case int:
-		amount = int64(v)
-	case int32:
-		amount = int64(v)
-	case int64:
-		amount = v
-	default:
-		return nil, fmt.Errorf("amount is required")
+	amount, ok := p.Args[fieldAmount].(int64)
+	if !ok || amount == 0 {
+		return nil, fmt.Errorf("amount is zero")
 	}
-	return h.PayWithCard(context.Background(), customerIDStr, cardIDStr, orderIDStr, currency, amount)
+
+	return h.PayWithCard(
+		context.Background(),
+		customerIDStr,
+		cardIDStr,
+		orderIDStr,
+		currency,
+		amount,
+	)
 }
 
 func (h *SchemaHandler) getPaymentsResolver(p gql.ResolveParams) (interface{}, error) {
@@ -165,12 +177,12 @@ func (h *SchemaHandler) getPaymentsResolver(p gql.ResolveParams) (interface{}, e
 		return nil, fmt.Errorf("customerId is required")
 	}
 	limit := int32(10)
-	if v, ok := p.Args[fieldLimit].(int); ok && v > 0 {
-		limit = int32(v)
+	if v, ok := p.Args[fieldLimit].(int32); ok && v > 0 {
+		limit = v
 	}
 	offset := int32(0)
-	if v, ok := p.Args[fieldOffset].(int); ok && v >= 0 {
-		offset = int32(v)
+	if v, ok := p.Args[fieldOffset].(int32); ok && v >= 0 {
+		offset = v
 	}
 	return h.GetPayments(context.Background(), customerIDStr, limit, offset)
 }

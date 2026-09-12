@@ -93,7 +93,10 @@ func (c *Client) post(ctx context.Context, path string, body interface{}) (*apiR
 		}
 
 		data, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		err = resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("closing body error")
+		}
 		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 			lastErr = fmt.Errorf("bad status %d: %s", resp.StatusCode, string(data))
 			if attempt < 2 {
@@ -144,11 +147,18 @@ type createPaymentRequest struct {
 }
 
 // AddPaymentMethod sends a hosted payment creation request and returns redirect URL
-func (c *Client) AddPaymentMethod(ctx context.Context, req AddPaymentMethodRequest) (AddPaymentMethodResponse, error) {
+func (c *Client) AddPaymentMethod(
+	ctx context.Context,
+	req AddPaymentMethodRequest,
+) (AddPaymentMethodResponse, error) {
 	orderID, _ := uuid.NewRandom()
 
 	payload := createPaymentRequest{
-		ExternalID:  domain.BuildExternalID(domain.AddCardEventType, req.CustomerID, orderID.String()),
+		ExternalID: domain.BuildExternalID(
+			domain.AddCardEventType,
+			req.CustomerID,
+			orderID.String(),
+		),
 		Amount:      1,
 		Currency:    "UAH",
 		Mode:        "hosted",
@@ -167,7 +177,10 @@ func (c *Client) AddPaymentMethod(ctx context.Context, req AddPaymentMethodReque
 }
 
 // CreatePaymentWithSavedCard creates a payment using a saved card token
-func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePaymentWithTokenRequest) (CreatePaymentWithTokenResponse, error) {
+func (c *Client) CreatePaymentWithSavedCard(
+	ctx context.Context,
+	req CreatePaymentWithTokenRequest,
+) (CreatePaymentWithTokenResponse, error) {
 	payload := createPaymentRequest{
 		ExternalID:  domain.BuildExternalID(domain.PaymentEventType, req.CustomerID, req.OrderID),
 		Amount:      req.Amount,
@@ -191,11 +204,13 @@ func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePayme
 	}
 
 	if !domain.ValidateStatus(ar.Details.Status) {
-		return CreatePaymentWithTokenResponse{}, fmt.Errorf("integration error: status not recognized")
+		return CreatePaymentWithTokenResponse{}, fmt.Errorf(
+			"integration error: status not recognized",
+		)
 	}
 
 	res := CreatePaymentWithTokenResponse{
-		Status: ar.Details.Status,
+		Status:      ar.Details.Status,
 		RedirectURL: ar.Action.Value,
 	}
 

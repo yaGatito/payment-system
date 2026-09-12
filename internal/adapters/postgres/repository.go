@@ -35,7 +35,10 @@ func (r *WalletRepoPostgreSQL) AddCard(ctx context.Context, card domain.Card) er
 	return nil
 }
 
-func (r *WalletRepoPostgreSQL) GetCardByID(ctx context.Context, cardID uuid.UUID) (domain.Card, error) {
+func (r *WalletRepoPostgreSQL) GetCardByID(
+	ctx context.Context,
+	cardID uuid.UUID,
+) (domain.Card, error) {
 	row, err := r.queries.GetCardByID(ctx, cardID)
 	if err != nil {
 		return domain.Card{}, err
@@ -91,7 +94,11 @@ func (r *WalletRepoPostgreSQL) AddPayment(ctx context.Context, payment domain.Pa
 	return nil
 }
 
-func (r *WalletRepoPostgreSQL) UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error {
+func (r *WalletRepoPostgreSQL) UpdatePaymentStatus(
+	ctx context.Context,
+	paymentID uuid.UUID,
+	paymentStatus string,
+) error {
 	arg := sqlcgen.UpdatePaymentStatusParams{
 		OrderID: paymentID,
 		Status:  paymentStatus,
@@ -103,7 +110,11 @@ func (r *WalletRepoPostgreSQL) UpdatePaymentStatus(ctx context.Context, paymentI
 	return nil
 }
 
-func (r *WalletRepoPostgreSQL) GetPayments(ctx context.Context, ownerID uuid.UUID, limit, offset int32) ([]domain.Payment, error) {
+func (r *WalletRepoPostgreSQL) GetPayments(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	limit, offset int32,
+) ([]domain.Payment, error) {
 	args := sqlcgen.GetPaymentsParams{
 		OwnerID: ownerID,
 		Limit:   limit,

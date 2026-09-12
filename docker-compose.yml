@@ -3,8 +3,8 @@ services:
     image: nats:2.10-alpine
     container_name: nats-jetstream
     ports:
-      - "4222:4222"  # Client port
-      - "8222:8222"  # Management port
+      - "${NATS_PORT}:${NATS_PORT}"
+      - "${NATS_MGMT_PORT}:${NATS_MGMT_PORT}"
     command: "-js -sd /data"
     volumes:
       - nats_data:/data
@@ -34,20 +34,95 @@ services:
     image: yagatito/goose-go:1.0
     container_name: wallet_migration_runner
     volumes:
-      - ~/projects/payment-system/sql/migrations:/wallet-migrations
+      - ./sql/migrations:/wallet-migrations
     environment:
       WALLET_DB_NAME: "${WALLET_DB_NAME}"
-      WALLET_DB_HOST: "${WALLET_DB_HOST}"
+      WALLET_DB_HOST: "wallet-db"
       WALLET_DB_PORT: "${WALLET_DB_PORT}"
       WALLET_DB_USER: "${WALLET_DB_USER}"
       WALLET_DB_PASS: "${WALLET_DB_PASS}"
     command: >
       sh -c '
-      goose -dir /wallet-migrations postgres "postgres://$$WALLET_DB_USER:$$WALLET_DB_PASS@wallet-db:$$WALLET_DB_PORT/$$WALLET_DB_NAME?sslmode=disable" up
+      goose -dir /wallet-migrations postgres "postgres://$$WALLET_DB_USER:$$WALLET_DB_PASS@$$WALLET_DB_HOST:$$WALLET_DB_PORT/$$WALLET_DB_NAME?sslmode=disable" up
       '
     depends_on:
       wallet-db:
         condition: service_healthy
+    networks:
+      - payment-network
+
+  wallet-svc:
+    image: yagatito/wallet-service-prod:1.0
+    container_name: wallet-service
+    # build:
+    #   context: .
+    #   dockerfile: docker/Dockerfile.wallet
+    environment:
+      WALLET_DB_HOST: wallet-db
+      WALLET_DB_PORT: "${WALLET_DB_PORT}"
+      WALLET_DB_USER: "${WALLET_DB_USER}"
+      WALLET_DB_PASS: "${WALLET_DB_PASS}"
+      WALLET_DB_NAME: "${WALLET_DB_NAME}"
+      NATS_URL: "nats://nats-js:${NATS_PORT}"
+      NATS_STREAM: "${NATS_STREAM}"
+      ROZETKA_BASE_URL: "${ROZETKA_BASE_URL}"
+      ROZETKA_USERNAME: "${ROZETKA_USERNAME}"
+      ROZETKA_PASSWORD: "${ROZETKA_PASSWORD}"
+      ROZETKA_CALLBACK_URL: "${ROZETKA_CALLBACK_URL}"
+      GRAPHQL_PORT: "${GRAPHQL_PORT}"
+    ports:
+      - "${GRAPHQL_PORT}:${GRAPHQL_PORT}"
+    depends_on:
+      wallet-db:
+        condition: service_healthy
+      nats-js:
+        condition: service_started
+      migration_runner:
+        condition: service_completed_successfully
+    networks:
+      - payment-network
+
+  callback-svc:
+    image: yagatito/callback-service-prod:1.0
+    container_name: callback-service
+    # build:
+    #   context: .
+    #   dockerfile: docker/Dockerfile.callback
+    environment:
+      CALLBACK_PORT: "${CALLBACK_PORT}"
+      NATS_URL: "nats://nats-js:${NATS_PORT}"
+      NATS_STREAM: "${NATS_STREAM}"
+      NATS_SUBJECT: "${NATS_SUBJECT}"
+      ROZETKA_PASSWORD: "${ROZETKA_PASSWORD}"
+    ports:
+      - "${CALLBACK_PORT}:${CALLBACK_PORT}"
+    depends_on:
+      nats-js:
+        condition: service_started
+    networks:
+      - payment-network
+
+  worker-svc:
+    image: yagatito/worker-service-prod:1.0
+    container_name: worker-service
+    # build:
+    #   context: .
+    #   dockerfile: docker/Dockerfile.worker
+    environment:
+      WALLET_DB_HOST: wallet-db
+      WALLET_DB_PORT: "${WALLET_DB_PORT}"
+      WALLET_DB_USER: "${WALLET_DB_USER}"
+      WALLET_DB_PASS: "${WALLET_DB_PASS}"
+      WALLET_DB_NAME: "${WALLET_DB_NAME}"
+      NATS_URL: "nats://nats-js:${NATS_PORT}"
+      NATS_STREAM: "${NATS_STREAM}"
+    depends_on:
+      wallet-db:
+        condition: service_healthy
+      nats-js:
+        condition: service_started
+      migration_runner:
+        condition: service_completed_successfully
     networks:
       - payment-network
 

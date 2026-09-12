@@ -1,0 +1,57 @@
+version: "2"
+
+run:
+  tests: false
+  relative-path-mode: gomod
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - rowserrcheck
+    - gocyclo
+    - gocritic
+    - misspell
+    - lll
+    - whitespace
+    - unparam
+    - gosec
+    - nilnesserr
+    - sqlclosecheck
+    - loggercheck
+    - testpackage
+    - unconvert
+    - gochecknoinits
+    - gomoddirectives
+    - testableexamples
+    - nakedret
+    - asciicheck
+
+  settings:
+    lll:
+      line-length: 120
+
+    gosec:
+      severity: high
+      config:
+        G101:
+          pattern: "(?i)passwd|password|secret|token|api_key"
+          ignore_entropy: false
+
+    whitespace:
+      multi-if: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - golines
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

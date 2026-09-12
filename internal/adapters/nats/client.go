@@ -13,7 +13,11 @@ const createOrUpdateStreamTimeout = 10 * time.Second
 
 type NatsClient interface {
 	Publish(ctx context.Context, subject string, data []byte) error
-	Subscribe(ctx context.Context, streamName, durableName string, handler func(msg jetstream.Msg)) (jetstream.ConsumeContext, error)
+	Subscribe(
+		ctx context.Context,
+		streamName, durableName string,
+		handler func(msg jetstream.Msg),
+	) (jetstream.ConsumeContext, error)
 	Close()
 }
 
@@ -59,7 +63,11 @@ func New(url string, streamName string) (*NatsPubSubClient, error) {
 	return client, nil
 }
 
-func (c *NatsPubSubClient) Subscribe(ctx context.Context, streamName, durableName string, handler func(msg jetstream.Msg)) (jetstream.ConsumeContext, error) {
+func (c *NatsPubSubClient) Subscribe(
+	ctx context.Context,
+	streamName, durableName string,
+	handler func(msg jetstream.Msg),
+) (jetstream.ConsumeContext, error) {
 	if streamName == "" {
 		return nil, fmt.Errorf("stream name is required")
 	}

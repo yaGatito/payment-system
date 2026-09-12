@@ -24,7 +24,11 @@ type CallbackHandler struct {
 	logger         *logger.Logger
 }
 
-func NewCallbackHandler(natsClient natsadp.NatsClient, natsSubject, callbackSecret string, l *logger.Logger) *CallbackHandler {
+func NewCallbackHandler(
+	natsClient natsadp.NatsClient,
+	natsSubject, callbackSecret string,
+	l *logger.Logger,
+) *CallbackHandler {
 	if natsClient == nil {
 		panic("nats client is required")
 	}
@@ -81,11 +85,22 @@ func (ch *CallbackHandler) NotifyHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	ch.logger.Info("callback event published: subject=%s type=%s customer=%s payment=%s status=%s", ch.natsSubject, paymentEvent.EventType, paymentEvent.CustomerID, paymentEvent.PaymentID, paymentEvent.Status)
+	ch.logger.Info(
+		"callback event published: subject=%s type=%s customer=%s payment=%s status=%s",
+		ch.natsSubject,
+		paymentEvent.EventType,
+		paymentEvent.CustomerID,
+		paymentEvent.PaymentID,
+		paymentEvent.Status,
+	)
 	writeResponse(ctx, fasthttp.StatusOK, `{"status":"ok"}`)
 }
 
-func (ch *CallbackHandler) publishWithRetry(ctx context.Context, subject string, payload []byte) error {
+func (ch *CallbackHandler) publishWithRetry(
+	ctx context.Context,
+	subject string,
+	payload []byte,
+) error {
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
 		err = ch.natsClient.Publish(ctx, subject, payload)
@@ -116,7 +131,10 @@ func verifyRequestSignature(body []byte, password, signature string) bool {
 	trimmedExpected := strings.TrimSpace(expected)
 
 	return subtle.ConstantTimeCompare([]byte(trimmedSignature), []byte(trimmedExpected)) == 1 ||
-		subtle.ConstantTimeCompare([]byte(trimmedSignature), []byte(strings.TrimSuffix(trimmedExpected, "="))) == 1
+		subtle.ConstantTimeCompare(
+			[]byte(trimmedSignature),
+			[]byte(strings.TrimSuffix(trimmedExpected, "=")),
+		) == 1
 }
 
 func writeResponse(ctx *fasthttp.RequestCtx, statusCode int, message string) {
@@ -137,7 +155,9 @@ func toPaymentEvent(response rozetkaApiResponse) (natsadp.PaymentEvent, error) {
 	}
 
 	compositeID := strings.Split(response.ExternalID, "_")
-	if len(compositeID) != 3 || compositeID[0] == "" || compositeID[1] == "" || compositeID[2] == "" {
+	if len(compositeID) != 3 || compositeID[0] == "" ||
+		compositeID[1] == "" || compositeID[2] == "" {
+
 		return natsadp.PaymentEvent{}, fmt.Errorf("invalid external_id format")
 	}
 	eventType := compositeID[0]

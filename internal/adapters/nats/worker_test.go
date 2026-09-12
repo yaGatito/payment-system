@@ -20,6 +20,11 @@ func TestParseExternalID(t *testing.T) {
 		t.Fatalf("ParseExternalID returned error: %v", err)
 	}
 	if eventType != "payment" || customerID != "customer-123" || entityID != "order-456" {
-		t.Fatalf("ParseExternalID() = %q, %q, %q; want payment/customer-123/order-456", eventType, customerID, entityID)
+		t.Fatalf(
+			"ParseExternalID() = %q, %q, %q; want payment/customer-123/order-456",
+			eventType,
+			customerID,
+			entityID,
+		)
 	}
 }

@@ -40,7 +40,7 @@ func (l *Logger) log(level, format string, args ...interface{}) {
 	b.WriteString(" ")
 	b.WriteString(level)
 	b.WriteString(" ")
-	b.WriteString(fmt.Sprintf(format, args...))
+	_, _ = fmt.Fprintf(&b, format, args...)
 	b.WriteString("\n")
 
 	l.mu.Lock()

@@ -17,7 +17,10 @@ type testWalletInteractor struct {
 	payments []domain.Payment
 }
 
-func (s *testWalletInteractor) AddCard(ctx context.Context, customerID uuid.UUID) (domain.WalletCard, error) {
+func (s *testWalletInteractor) AddCard(
+	ctx context.Context,
+	customerID uuid.UUID,
+) (domain.WalletCard, error) {
 	cardID := uuid.New()
 	card := domain.Card{
 		CustomerID: customerID,
@@ -34,7 +37,10 @@ func (s *testWalletInteractor) AddCard(ctx context.Context, customerID uuid.UUID
 	}, nil
 }
 
-func (s *testWalletInteractor) GetCards(ctx context.Context, customerID uuid.UUID) ([]domain.Card, error) {
+func (s *testWalletInteractor) GetCards(
+	ctx context.Context,
+	customerID uuid.UUID,
+) ([]domain.Card, error) {
 	if customerID == uuid.Nil {
 		return nil, errors.New("invalid customer ID")
 	}
@@ -52,7 +58,10 @@ func (s *testWalletInteractor) GetCards(ctx context.Context, customerID uuid.UUI
 	return s.cards, nil
 }
 
-func (s *testWalletInteractor) ChargeSavedCard(ctx context.Context, payment domain.Payment) (domain.PaymentResult, error) {
+func (s *testWalletInteractor) ChargeSavedCard(
+	ctx context.Context,
+	payment domain.Payment,
+) (domain.PaymentResult, error) {
 	for _, card := range s.cards {
 		if card.CardID == payment.CardID {
 			if card.CustomerID != payment.CustomerID {
@@ -63,13 +72,18 @@ func (s *testWalletInteractor) ChargeSavedCard(ctx context.Context, payment doma
 			}
 			return domain.PaymentResult{
 				OrderID: payment.OrderID,
+				Status:  "pending",
 			}, nil
 		}
 	}
 	return domain.PaymentResult{}, errors.New("unknown card")
 }
 
-func (s *testWalletInteractor) GetPayments(ctx context.Context, customerID uuid.UUID, limit, offset int32) ([]domain.Payment, error) {
+func (s *testWalletInteractor) GetPayments(
+	ctx context.Context,
+	customerID uuid.UUID,
+	limit, offset int32,
+) ([]domain.Payment, error) {
 	if customerID == uuid.Nil {
 		return nil, errors.New("invalid customer ID")
 	}

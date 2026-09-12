@@ -15,5 +15,9 @@ type WalletRepository interface {
 
 	AddPayment(ctx context.Context, payment domain.Payment) error
 	UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error
-	GetPayments(ctx context.Context, ownerID uuid.UUID, limit, offset int32) ([]domain.Payment, error)
+	GetPayments(
+		ctx context.Context,
+		ownerID uuid.UUID,
+		limit, offset int32,
+	) ([]domain.Payment, error)
 }

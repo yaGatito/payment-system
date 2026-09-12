@@ -1,0 +1,17 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w -extldflags '-static'" -o /bin/worker-svc ./cmd/worker
+RUN apk add upx
+RUN upx /bin/worker-svc
+
+FROM scratch
+WORKDIR /src
+
+COPY --from=builder /bin/worker-svc ./worker-svc
+
+CMD ["./worker-svc"]
