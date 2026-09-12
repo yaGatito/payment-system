@@ -24,6 +24,7 @@ func NewWalletRepoPostgreSQL(querier sqlcgen.Querier) ports.WalletRepository {
 func (r *WalletRepoPostgreSQL) AddCard(ctx context.Context, card domain.Card) error {
 	arg := sqlcgen.AddCardParams{
 		OwnerID: card.CustomerID,
+		Token:   card.Token,
 		Type:    card.Type,
 		Last4:   card.Last4,
 	}
@@ -77,6 +78,7 @@ func (r *WalletRepoPostgreSQL) RemoveCard(ctx context.Context, cardID uuid.UUID)
 
 func (r *WalletRepoPostgreSQL) AddPayment(ctx context.Context, payment domain.Payment) error {
 	arg := sqlcgen.AddPaymentParams{
+		OrderID:  payment.OrderID,
 		OwnerID:  payment.CustomerID,
 		CardID:   payment.CardID,
 		Amount:   payment.Amount,
@@ -91,8 +93,8 @@ func (r *WalletRepoPostgreSQL) AddPayment(ctx context.Context, payment domain.Pa
 
 func (r *WalletRepoPostgreSQL) UpdatePaymentStatus(ctx context.Context, paymentID uuid.UUID, paymentStatus string) error {
 	arg := sqlcgen.UpdatePaymentStatusParams{
-		ID:     paymentID,
-		Status: paymentStatus,
+		OrderID: paymentID,
+		Status:  paymentStatus,
 	}
 	err := r.queries.UpdatePaymentStatus(ctx, arg)
 	if err != nil {

@@ -16,6 +16,8 @@ const (
 	fieldOrderID    = "orderId"
 	fieldAmount     = "amount"
 	fieldCurrency   = "currency"
+	fieldLimit      = "limit"
+	fieldOffset     = "offset"
 )
 
 type SchemaHandler struct {
@@ -74,10 +76,40 @@ func (h *SchemaHandler) PayWithCard(ctx context.Context, customerIDStr, cardIDSt
 		Amount:     amount,
 		Currency:   currency,
 	}
-	if err := h.walletInteractor.ChargeSavedCard(ctx, payment); err != nil {
+	payResult, err := h.walletInteractor.ChargeSavedCard(ctx, payment)
+	if err != nil {
 		return nil, err
 	}
-	return &PaymentResult{PaymentID: orderID.String(), Status: "completed"}, nil
+	return &PaymentResult{
+		PaymentID:   orderID.String(),
+		Status:      payResult.Status,
+		RedirectURL: payResult.RedirectURL,
+	}, nil
+}
+
+func (h *SchemaHandler) GetPayments(ctx context.Context, customerIDStr string, limit, offset int32) ([]*Payment, error) {
+	customerID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid customerId: %w", err)
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	items, err := h.walletInteractor.GetPayments(ctx, customerID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*Payment, len(items))
+	for i, item := range items {
+		result[i] = &Payment{
+			PaymentID: item.OrderID.String(),
+			Amount:    item.Amount,
+			Currency:  item.Currency,
+			Status:    item.Status,
+			CreatedAt: item.CreatedAt.Unix(),
+		}
+	}
+	return result, nil
 }
 
 func (h *SchemaHandler) getCardsResolver(p gql.ResolveParams) (interface{}, error) {
@@ -127,6 +159,22 @@ func (h *SchemaHandler) payWithCardResolver(p gql.ResolveParams) (interface{}, e
 	return h.PayWithCard(context.Background(), customerIDStr, cardIDStr, orderIDStr, currency, amount)
 }
 
+func (h *SchemaHandler) getPaymentsResolver(p gql.ResolveParams) (interface{}, error) {
+	customerIDStr, ok := p.Args[fieldCustomerID].(string)
+	if !ok || customerIDStr == "" {
+		return nil, fmt.Errorf("customerId is required")
+	}
+	limit := int32(10)
+	if v, ok := p.Args[fieldLimit].(int); ok && v > 0 {
+		limit = int32(v)
+	}
+	offset := int32(0)
+	if v, ok := p.Args[fieldOffset].(int); ok && v >= 0 {
+		offset = int32(v)
+	}
+	return h.GetPayments(context.Background(), customerIDStr, limit, offset)
+}
+
 var cardType = gql.NewObject(gql.ObjectConfig{
 	Name: "Card",
 	Fields: gql.Fields{
@@ -148,8 +196,20 @@ var walletCardType = gql.NewObject(gql.ObjectConfig{
 var paymentResultType = gql.NewObject(gql.ObjectConfig{
 	Name: "PaymentResult",
 	Fields: gql.Fields{
+		"paymentId":   &gql.Field{Type: gql.NewNonNull(gql.ID)},
+		"status":      &gql.Field{Type: gql.NewNonNull(gql.String)},
+		"redirectUrl": &gql.Field{Type: gql.NewNonNull(gql.String)},
+	},
+})
+
+var paymentType = gql.NewObject(gql.ObjectConfig{
+	Name: "Payment",
+	Fields: gql.Fields{
 		"paymentId": &gql.Field{Type: gql.NewNonNull(gql.ID)},
+		"amount":    &gql.Field{Type: gql.NewNonNull(gql.Int)},
+		"currency":  &gql.Field{Type: gql.NewNonNull(gql.String)},
 		"status":    &gql.Field{Type: gql.NewNonNull(gql.String)},
+		"createdAt": &gql.Field{Type: gql.NewNonNull(gql.Int)},
 	},
 })
 
@@ -169,6 +229,15 @@ func NewSchema(walletInteractor app.WalletInteractor) (gql.Schema, error) {
 					fieldCustomerID: &gql.ArgumentConfig{Type: gql.NewNonNull(gql.ID)},
 				},
 				Resolve: handler.getCardsResolver,
+			},
+			"getPayments": &gql.Field{
+				Type: gql.NewNonNull(gql.NewList(gql.NewNonNull(paymentType))),
+				Args: gql.FieldConfigArgument{
+					fieldCustomerID: &gql.ArgumentConfig{Type: gql.NewNonNull(gql.ID)},
+					fieldLimit:      &gql.ArgumentConfig{Type: gql.Int},
+					fieldOffset:     &gql.ArgumentConfig{Type: gql.Int},
+				},
+				Resolve: handler.getPaymentsResolver,
 			},
 		},
 	})

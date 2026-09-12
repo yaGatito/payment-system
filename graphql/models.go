@@ -16,6 +16,16 @@ type WalletCard struct {
 
 // PaymentResult is the result of charging a saved card.
 type PaymentResult struct {
+	PaymentID   string `json:"paymentId"`
+	Status      string `json:"status"`
+	RedirectURL string `json:"redirectUrl"`
+}
+
+// Payment is a stored payment record.
+type Payment struct {
 	PaymentID string `json:"paymentId"`
+	Amount    int64  `json:"amount"`
+	Currency  string `json:"currency"`
 	Status    string `json:"status"`
+	CreatedAt int64  `json:"createdAt"`
 }

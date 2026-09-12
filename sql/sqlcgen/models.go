@@ -20,6 +20,7 @@ type Card struct {
 
 type Payment struct {
 	ID        uuid.UUID
+	OrderID   uuid.UUID
 	CardID    uuid.UUID
 	OwnerID   uuid.UUID
 	Amount    int64

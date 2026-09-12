@@ -30,12 +30,6 @@ type EnvConfig struct {
 
 const durableName = "PAYMENT_WORKER"
 
-const (
-	PendingPaymentStatus = "pending"
-	FailurePaymentStatus = "failure"
-	SuccessPaymentStatus = "success"
-)
-
 func main() {
 	l := logger.New()
 	if err := run(l); err != nil {

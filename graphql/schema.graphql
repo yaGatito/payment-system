@@ -9,15 +9,30 @@ type WalletCard {
   redirectUrl: String!
 }
 
+type Payment {
+  paymentId: ID!
+  amount: Int!
+  currency: String!
+  status: String!
+  createdAt: Int!
+}
+
 type PaymentResult {
   paymentId: ID!
   status: String!
+  redirectUrl: String!
 }
 
 type Query {
   getCards(
     customerId: ID!
   ): [Card!]!
+
+  getPayments(
+    customerId: ID!
+    limit: Int = 10
+    offset: Int = 0
+  ): [Payment!]!
 }
 
 type Mutation {
@@ -26,6 +41,7 @@ type Mutation {
   ): WalletCard!
 
   payWithCard(
+    customerId: ID!
     cardId: ID!
     amount: Int!
     currency: String!

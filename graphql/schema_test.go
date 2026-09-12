@@ -13,7 +13,8 @@ import (
 )
 
 type testWalletInteractor struct {
-	cards []domain.Card
+	cards    []domain.Card
+	payments []domain.Payment
 }
 
 func (s *testWalletInteractor) AddCard(ctx context.Context, customerID uuid.UUID) (domain.WalletCard, error) {
@@ -41,6 +42,7 @@ func (s *testWalletInteractor) GetCards(ctx context.Context, customerID uuid.UUI
 		seed := domain.Card{
 			CustomerID: customerID,
 			CardID:     uuid.MustParse("11111111-1111-4111-8111-111111111111"),
+			Token:      "token_123",
 			Type:       "visa",
 			Last4:      "1234",
 			LinkedAt:   time.Now(),
@@ -50,16 +52,41 @@ func (s *testWalletInteractor) GetCards(ctx context.Context, customerID uuid.UUI
 	return s.cards, nil
 }
 
-func (s *testWalletInteractor) ChargeSavedCard(ctx context.Context, payment domain.Payment) error {
+func (s *testWalletInteractor) ChargeSavedCard(ctx context.Context, payment domain.Payment) (domain.PaymentResult, error) {
 	for _, card := range s.cards {
 		if card.CardID == payment.CardID {
 			if card.CustomerID != payment.CustomerID {
-				return errors.New("card does not belong to customer")
+				return domain.PaymentResult{}, errors.New("card does not belong to customer")
 			}
-			return nil
+			if payment.CardID == uuid.Nil {
+				return domain.PaymentResult{}, errors.New("missing card")
+			}
+			return domain.PaymentResult{
+				OrderID: payment.OrderID,
+			}, nil
 		}
 	}
-	return errors.New("unknown card")
+	return domain.PaymentResult{}, errors.New("unknown card")
+}
+
+func (s *testWalletInteractor) GetPayments(ctx context.Context, customerID uuid.UUID, limit, offset int32) ([]domain.Payment, error) {
+	if customerID == uuid.Nil {
+		return nil, errors.New("invalid customer ID")
+	}
+	if len(s.payments) == 0 {
+		seed := domain.Payment{
+			CustomerID: customerID,
+			CardID:     uuid.MustParse("11111111-1111-4111-8111-111111111111"),
+			OrderID:    uuid.MustParse("22222222-2222-4222-8222-222222222222"),
+			Amount:     10000,
+			Currency:   "UAH",
+			Status:     "success",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		s.payments = []domain.Payment{seed}
+	}
+	return s.payments, nil
 }
 
 func newTestSchema(t *testing.T) gql.Schema {
@@ -69,6 +96,7 @@ func newTestSchema(t *testing.T) gql.Schema {
 	wallet := &testWalletInteractor{cards: []domain.Card{{
 		CustomerID: ownerID,
 		CardID:     cardID,
+		Token:      "token_123",
 		Type:       "visa",
 		Last4:      "1234",
 		LinkedAt:   time.Now(),
@@ -128,11 +156,35 @@ func TestPayWithCard(t *testing.T) {
 		t.Fatalf("graphql errors: %v", result.Errors)
 	}
 	pay := result.Data.(map[string]interface{})["payWithCard"].(map[string]interface{})
-	if pay["status"] != "completed" {
-		t.Fatalf("expected completed, got %#v", pay)
+	if pay["status"] != "pending" {
+		t.Fatalf("expected pending, got %#v", pay)
 	}
 	if pay["paymentId"] == "" {
 		t.Fatalf("expected paymentId, got %#v", pay)
+	}
+}
+
+func TestGetPayments(t *testing.T) {
+	customerID := uuid.MustParse("123e4567-e89b-42d3-a456-426614174000").String()
+	result := gql.Do(gql.Params{
+		Schema: newTestSchema(t),
+		RequestString: `
+			query($customerId: ID!) {
+				getPayments(customerId: $customerId, limit: 10, offset: 0) {
+					paymentId
+					amount
+					currency
+					status
+				}
+			}`,
+		VariableValues: map[string]interface{}{"customerId": customerID},
+	})
+	if len(result.Errors) > 0 {
+		t.Fatalf("graphql errors: %v", result.Errors)
+	}
+	payments := result.Data.(map[string]interface{})["getPayments"].([]interface{})
+	if len(payments) == 0 {
+		t.Fatal("expected seeded payment")
 	}
 }
 

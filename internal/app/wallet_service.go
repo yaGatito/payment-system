@@ -13,7 +13,8 @@ import (
 type WalletInteractor interface {
 	AddCard(ctx context.Context, customerID uuid.UUID) (domain.WalletCard, error)
 	GetCards(ctx context.Context, customerID uuid.UUID) ([]domain.Card, error)
-	ChargeSavedCard(ctx context.Context, payment domain.Payment) error
+	GetPayments(ctx context.Context, customerID uuid.UUID, limit, offset int32) ([]domain.Payment, error)
+	ChargeSavedCard(ctx context.Context, payment domain.Payment) (domain.PaymentResult, error)
 }
 
 var _ WalletInteractor = (*WalletService)(nil)
@@ -55,16 +56,33 @@ func (ws *WalletService) GetCards(ctx context.Context, customerID uuid.UUID) ([]
 	return ws.db.GetCards(ctx, customerID), nil
 }
 
-func (ws *WalletService) ChargeSavedCard(ctx context.Context, payment domain.Payment) error {
-	if payment.CustomerID == uuid.Nil {
-		return fmt.Errorf("invalid customer ID")
+func (ws *WalletService) GetPayments(ctx context.Context, customerID uuid.UUID, limit, offset int32) ([]domain.Payment, error) {
+	if customerID == uuid.Nil {
+		return nil, fmt.Errorf("invalid customer ID")
 	}
+	if limit <= 0 {
+		limit = 10
+	}
+	return ws.db.GetPayments(ctx, customerID, limit, offset)
+}
+
+func (ws *WalletService) ChargeSavedCard(ctx context.Context, payment domain.Payment) (domain.PaymentResult, error) {
+	if payment.CustomerID == uuid.Nil {
+		return domain.PaymentResult{}, fmt.Errorf("invalid customer ID")
+	}
+	if payment.OrderID == uuid.Nil {
+		return domain.PaymentResult{}, fmt.Errorf("invalid order ID")
+	}
+	if payment.CardID == uuid.Nil {
+		return domain.PaymentResult{}, fmt.Errorf("card id is required")
+	}
+
 	card, err := ws.db.GetCardByID(ctx, payment.CardID)
 	if err != nil {
-		return err
+		return domain.PaymentResult{}, err
 	}
 	if card.CustomerID != payment.CustomerID {
-		return fmt.Errorf("card does not belong to customer")
+		return domain.PaymentResult{}, fmt.Errorf("card does not belong to customer")
 	}
 
 	resp, err := ws.rozetkaClient.CreatePaymentWithSavedCard(ctx, thirdparty.CreatePaymentWithTokenRequest{
@@ -75,11 +93,28 @@ func (ws *WalletService) ChargeSavedCard(ctx context.Context, payment domain.Pay
 		CustomerToken: card.Token,
 	})
 	if err != nil {
-		return err
+		// _ = ws.db.UpdatePaymentStatus(ctx, payment.OrderID, domain.FailurePaymentStatus)
+		return domain.PaymentResult{}, err
 	}
-	if resp.Status == "failed" {
-		return fmt.Errorf("payment failed")
+	// if resp.Status == domain.FailurePaymentStatus {
+	// 	// TODO: log on failure payments
+	// }
+
+	pendingPayment := domain.Payment{
+		CustomerID: payment.CustomerID,
+		CardID:     payment.CardID,
+		OrderID:    payment.OrderID,
+		Amount:     payment.Amount,
+		Currency:   payment.Currency,
+		Status:     resp.Status,
+	}
+	if err := ws.db.AddPayment(ctx, pendingPayment); err != nil {
+		return domain.PaymentResult{}, err
 	}
 
-	return nil
+	return domain.PaymentResult{
+		OrderID:     payment.OrderID,
+		Status:      resp.Status,
+		RedirectURL: resp.RedirectURL,
+	}, nil
 }

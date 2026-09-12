@@ -38,13 +38,14 @@ func (q *Queries) AddCard(ctx context.Context, arg AddCardParams) (uuid.UUID, er
 }
 
 const addPayment = `-- name: AddPayment :exec
-INSERT INTO payments (owner_id, card_id, amount, currency, status, updated_at)
-VALUES ($1, $2, $3, $4, $5, NOW())
+INSERT INTO payments (owner_id, card_id, order_id, amount, currency, status, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, NOW())
 `
 
 type AddPaymentParams struct {
 	OwnerID  uuid.UUID
 	CardID   uuid.UUID
+	OrderID  uuid.UUID
 	Amount   int64
 	Currency string
 	Status   string
@@ -54,6 +55,7 @@ func (q *Queries) AddPayment(ctx context.Context, arg AddPaymentParams) error {
 	_, err := q.db.Exec(ctx, addPayment,
 		arg.OwnerID,
 		arg.CardID,
+		arg.OrderID,
 		arg.Amount,
 		arg.Currency,
 		arg.Status,
@@ -179,15 +181,15 @@ func (q *Queries) RemoveCard(ctx context.Context, id uuid.UUID) error {
 const updatePaymentStatus = `-- name: UpdatePaymentStatus :exec
 UPDATE payments
 SET status = $2, updated_at = NOW()
-WHERE id = $1
+WHERE order_id = $1
 `
 
 type UpdatePaymentStatusParams struct {
-	ID     uuid.UUID
-	Status string
+	OrderID uuid.UUID
+	Status  string
 }
 
 func (q *Queries) UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) error {
-	_, err := q.db.Exec(ctx, updatePaymentStatus, arg.ID, arg.Status)
+	_, err := q.db.Exec(ctx, updatePaymentStatus, arg.OrderID, arg.Status)
 	return err
 }

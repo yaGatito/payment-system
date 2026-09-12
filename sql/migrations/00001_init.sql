@@ -12,7 +12,8 @@ CREATE TABLE
 CREATE TABLE 
   IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    card_id UUID NOT NULL, -- Foreign key to cards table
+    order_id UUID NOT NULL UNIQUE, --  Foreign key to orders table
+    card_id UUID NOT NULL,  -- Foreign key to cards table
     owner_id UUID NOT NULL, -- Foreign key to users table
     amount BIGINT NOT NULL,
     currency VARCHAR(3) NOT NULL,

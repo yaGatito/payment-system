@@ -26,10 +26,17 @@ type Payment struct {
 	CustomerID uuid.UUID
 	CardID     uuid.UUID
 	OrderID    uuid.UUID
+	Token      string
 
 	Amount    int64
 	Currency  string
 	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type PaymentResult struct {
+	OrderID     uuid.UUID
+	Status      string
+	RedirectURL string
 }

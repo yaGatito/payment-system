@@ -16,6 +16,19 @@ const (
 	SuccessPaymentStatus = "success"
 )
 
+func ValidateStatus(status string) bool {
+	switch status {
+	case PendingPaymentStatus:
+		return true
+	case FailurePaymentStatus:
+		return true
+	case SuccessPaymentStatus:
+		return true
+	default:
+		return false
+	}
+}
+
 func BuildExternalID(eventType, customerID, entityID string) string {
 	return strings.Join([]string{eventType, customerID, entityID}, "_")
 }

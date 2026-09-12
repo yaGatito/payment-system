@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
-const RozetkaPaymentsPath = "/api/payments/v1/new"
-const TokenPaymentType = "cc_token"
+const rozetkaPaymentsPath = "/api/payments/v1/new"
+const tokenPaymentType = "cc_token"
 
 type Client struct {
 	BaseURL     string
@@ -155,7 +155,7 @@ func (c *Client) AddPaymentMethod(ctx context.Context, req AddPaymentMethodReque
 		CallbackURL: c.CallbackURL,
 	}
 
-	ar, err := c.post(ctx, RozetkaPaymentsPath, payload)
+	ar, err := c.post(ctx, rozetkaPaymentsPath, payload)
 	if err != nil {
 		return AddPaymentMethodResponse{}, err
 	}
@@ -177,7 +177,7 @@ func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePayme
 		Customer: &paymentCustomer{
 			ExternalID: req.CustomerID,
 			PaymentMethod: &paymentMethodBody{
-				Type: TokenPaymentType,
+				Type: tokenPaymentType,
 				CcToken: &ccTokenFragment{
 					Token: req.CustomerToken,
 				},
@@ -185,14 +185,20 @@ func (c *Client) CreatePaymentWithSavedCard(ctx context.Context, req CreatePayme
 		},
 	}
 
-	ar, err := c.post(ctx, "/api/payments/v1/new", payload)
+	ar, err := c.post(ctx, rozetkaPaymentsPath, payload)
 	if err != nil {
 		return CreatePaymentWithTokenResponse{}, err
 	}
 
+	if !domain.ValidateStatus(ar.Details.Status) {
+		return CreatePaymentWithTokenResponse{}, fmt.Errorf("integration error: status not recognized")
+	}
+
 	res := CreatePaymentWithTokenResponse{
 		Status: ar.Details.Status,
+		RedirectURL: ar.Action.Value,
 	}
+
 	if ar.ActionRequired {
 		res.RedirectURL = ar.Action.Value
 	}
